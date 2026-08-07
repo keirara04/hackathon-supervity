@@ -26,7 +26,9 @@ async def list_roster():
     except SupabaseError as e:
         raise HTTPException(status_code=502, detail=f"Supabase error: {e.detail}")
 
-    load_by_assignee = Counter(t["assigned_to"] for t in open_tasks if t.get("assigned_to"))
+    load_by_assignee = Counter(
+        t["assigned_to"] for t in open_tasks if t.get("assigned_to")
+    )
 
     for agent in agents:
         key = agent.get("agent_email") or agent.get("agent_name")

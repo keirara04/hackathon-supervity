@@ -173,11 +173,13 @@ async def get_audit(limit: int = 50):
         for key in VALID_KEYS:
             if old.get(key) != new.get(key):
                 changes.append({"field": key, "from": old.get(key), "to": new.get(key)})
-        entries.append({
-            "id": row["id"],
-            "changed_at": row["changed_at"],
-            "changed_by": row.get("changed_by"),
-            "changes": changes,
-        })
+        entries.append(
+            {
+                "id": row["id"],
+                "changed_at": row["changed_at"],
+                "changed_by": row.get("changed_by"),
+                "changes": changes,
+            }
+        )
 
     return {"entries": entries, "count": len(entries)}
