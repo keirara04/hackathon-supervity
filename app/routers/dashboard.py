@@ -41,10 +41,14 @@ async def get_kpis(limit: int = 1000):
     auto_resolution_rate = round(100 * auto / decided, 1) if decided else None
 
     breached_at_intake = sum(1 for r in runs if r.get("sla_state_before") == "Breached")
-    sla_compliance_pct = round(100 * (total - breached_at_intake) / total, 1) if total else None
+    sla_compliance_pct = (
+        round(100 * (total - breached_at_intake) / total, 1) if total else None
+    )
 
     mttr_values = [r["mttr_minutes"] for r in runs if r.get("mttr_minutes") is not None]
-    avg_mttr_minutes = round(sum(mttr_values) / len(mttr_values), 1) if mttr_values else None
+    avg_mttr_minutes = (
+        round(sum(mttr_values) / len(mttr_values), 1) if mttr_values else None
+    )
 
     resolved_count = sum(1 for r in runs if r.get("resolved_at") is not None)
 

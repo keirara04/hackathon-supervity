@@ -22,7 +22,11 @@ class KBUpdate(BaseModel):
 
 
 @router.get("")
-async def list_articles(category: str | None = None, x_auto_safe: bool | None = None, action_type: str | None = None):
+async def list_articles(
+    category: str | None = None,
+    x_auto_safe: bool | None = None,
+    action_type: str | None = None,
+):
     params: dict = {"order": "article_id.asc"}
     if category:
         params["category"] = f"eq.{category}"
@@ -52,7 +56,11 @@ async def get_article(article_id: str):
 @router.patch("/{article_id}")
 async def update_article(article_id: str, body: KBUpdate):
     try:
-        rows = await sb_patch("kb_articles", {"article_id": f"eq.{article_id}"}, {"x_auto_safe": body.x_auto_safe})
+        rows = await sb_patch(
+            "kb_articles",
+            {"article_id": f"eq.{article_id}"},
+            {"x_auto_safe": body.x_auto_safe},
+        )
     except SupabaseError as e:
         raise HTTPException(status_code=502, detail=f"Supabase error: {e.detail}")
     if not rows:

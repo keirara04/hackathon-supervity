@@ -39,7 +39,13 @@ class AssignRequest(BaseModel):
 async def _enrich_with_run_log(tasks: list[dict]) -> list[dict]:
     """Batch-join workbench_tasks -> run_log by ticket_id so the queue can
     show real VIP/SLA/department context, without an N+1 query per row."""
-    ticket_ids = sorted({str((t.get("context") or {}).get("ticket_id")) for t in tasks if (t.get("context") or {}).get("ticket_id")})
+    ticket_ids = sorted(
+        {
+            str((t.get("context") or {}).get("ticket_id"))
+            for t in tasks
+            if (t.get("context") or {}).get("ticket_id")
+        }
+    )
     if not ticket_ids:
         for t in tasks:
             t["enrichment"] = None

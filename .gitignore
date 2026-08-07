@@ -306,4 +306,4 @@ deployment/prod.env
 keycloak_convert/
 keycloak_convert.zip
 
-docs/
+docs/test.db

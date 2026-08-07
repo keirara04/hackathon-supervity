@@ -161,7 +161,9 @@ def get_secure_asset(
         try:
             import geoip2.errors
 
-            country = geoip_reader.country(x_forwarded_for.split(",")[0]).country.iso_code
+            country = geoip_reader.country(
+                x_forwarded_for.split(",")[0]
+            ).country.iso_code
         except geoip2.errors.AddressNotFoundError:
             country = "UNKNOWN"
 
@@ -172,4 +174,3 @@ def get_secure_asset(
 
 
 # For additional context-aware scenarios, see the project documentation.
-

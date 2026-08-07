@@ -70,7 +70,9 @@ def _apply_audit_filters(query, filters: dict):
     if filters.get("resource_id"):
         query = query.filter(AuditLog.resource_id == filters["resource_id"])
     if filters.get("success") is not None:
-        query = query.filter(AuditLog.success == ("true" if filters["success"] else "false"))
+        query = query.filter(
+            AuditLog.success == ("true" if filters["success"] else "false")
+        )
     if filters.get("severity"):
         query = query.filter(AuditLog.severity == filters["severity"])
     if filters.get("start_date"):
@@ -106,20 +108,26 @@ async def list_audit_logs(
     end_date: Optional[datetime] = Query(None, description="End date (ISO format)"),
     search: Optional[str] = Query(None, description="Search in description"),
     # Middleware-specific filters
-    http_method: Optional[str] = Query(None, description="Filter by HTTP method (GET, POST, etc.)"),
-    response_status: Optional[int] = Query(None, description="Filter by HTTP response status"),
-    is_middleware: Optional[bool] = Query(None, description="Filter by log source (True=auto, False=custom)"),
+    http_method: Optional[str] = Query(
+        None, description="Filter by HTTP method (GET, POST, etc.)"
+    ),
+    response_status: Optional[int] = Query(
+        None, description="Filter by HTTP response status"
+    ),
+    is_middleware: Optional[bool] = Query(
+        None, description="Filter by log source (True=auto, False=custom)"
+    ),
     # Dependencies
     user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     List audit logs with filtering and pagination.
-    
+
     Supports filtering by:
     - Standard fields: category, action, actor, resource, success, severity, date range
     - Middleware fields: HTTP method, response status, is_middleware flag
-    
+
     Requires 'admin' role.
     """
     query = db.query(AuditLog)
@@ -148,7 +156,9 @@ async def list_audit_logs(
 
     # Apply pagination and ordering (newest first)
     offset = (page - 1) * page_size
-    logs = query.order_by(desc(AuditLog.timestamp)).offset(offset).limit(page_size).all()
+    logs = (
+        query.order_by(desc(AuditLog.timestamp)).offset(offset).limit(page_size).all()
+    )
 
     # Calculate total pages
     total_pages = ceil(total / page_size) if total > 0 else 1
@@ -169,14 +179,14 @@ async def get_audit_stats(
 ):
     """
     Get comprehensive audit log statistics.
-    
+
     Returns:
     - Total events, events today/this week
     - Breakdown by category and action
     - Recent errors
     - Middleware-specific: by HTTP method, by status code, avg response time
     - Split between middleware (auto) and custom logs
-    
+
     Requires 'admin' role.
     """
     now = datetime.utcnow()
@@ -262,7 +272,7 @@ async def get_audit_stats(
     # Middleware vs custom log counts
     middleware_logs = (
         db.query(func.count(AuditLog.id))
-        .filter(AuditLog.is_middleware == True)
+        .filter(AuditLog.is_middleware.is_(True))
         .scalar()
         or 0
     )
@@ -286,7 +296,9 @@ async def get_audit_stats(
 @router.get("/export")
 async def export_audit_logs(
     # Format
-    format: Literal["csv", "xlsx"] = Query("csv", description="Export format: csv or xlsx"),
+    format: Literal["csv", "xlsx"] = Query(
+        "csv", description="Export format: csv or xlsx"
+    ),
     # Filters (same as list)
     category: Optional[str] = Query(None),
     action: Optional[str] = Query(None),
@@ -307,10 +319,10 @@ async def export_audit_logs(
 ):
     """
     Export audit logs as CSV or Excel.
-    
+
     Supports the same filters as the list endpoint.
     Maximum 100,000 rows per export to prevent memory issues.
-    
+
     Requires 'admin' role.
     """
     query = db.query(AuditLog)
@@ -343,25 +355,39 @@ async def export_audit_logs(
 def _export_csv(logs: list[AuditLog]) -> StreamingResponse:
     """Generate CSV export."""
     output = io.StringIO()
-    
+
     # Define columns
     fieldnames = [
-        "ID", "Timestamp", "Actor Email", "Actor IP", "Action", "Category",
-        "Severity", "Resource Type", "Resource ID", "Description", "Success",
-        "Error", "HTTP Method", "Endpoint", "Status Code", "Response Time (ms)", "Source"
+        "ID",
+        "Timestamp",
+        "Actor Email",
+        "Actor IP",
+        "Action",
+        "Category",
+        "Severity",
+        "Resource Type",
+        "Resource ID",
+        "Description",
+        "Success",
+        "Error",
+        "HTTP Method",
+        "Endpoint",
+        "Status Code",
+        "Response Time (ms)",
+        "Source",
     ]
-    
+
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
-    
+
     for log in logs:
         writer.writerow(log.to_export_dict())
-    
+
     output.seek(0)
-    
+
     # Generate filename with timestamp
     filename = f"audit_logs_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
-    
+
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
@@ -372,7 +398,7 @@ def _export_csv(logs: list[AuditLog]) -> StreamingResponse:
 def _export_xlsx(logs: list[AuditLog]) -> StreamingResponse:
     """
     Generate Excel export.
-    
+
     Note: Requires openpyxl package. Falls back to CSV if not available.
     """
     try:
@@ -381,32 +407,48 @@ def _export_xlsx(logs: list[AuditLog]) -> StreamingResponse:
     except ImportError:
         # Fallback to CSV if openpyxl not installed
         return _export_csv(logs)
-    
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Audit Logs"
-    
+
     # Headers with styling
     headers = [
-        "ID", "Timestamp", "Actor Email", "Actor IP", "Action", "Category",
-        "Severity", "Resource Type", "Resource ID", "Description", "Success",
-        "Error", "HTTP Method", "Endpoint", "Status Code", "Response Time (ms)", "Source"
+        "ID",
+        "Timestamp",
+        "Actor Email",
+        "Actor IP",
+        "Action",
+        "Category",
+        "Severity",
+        "Resource Type",
+        "Resource ID",
+        "Description",
+        "Success",
+        "Error",
+        "HTTP Method",
+        "Endpoint",
+        "Status Code",
+        "Response Time (ms)",
+        "Source",
     ]
-    
+
     header_font = Font(bold=True)
-    header_fill = PatternFill(start_color="E0E0E0", end_color="E0E0E0", fill_type="solid")
-    
+    header_fill = PatternFill(
+        start_color="E0E0E0", end_color="E0E0E0", fill_type="solid"
+    )
+
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
         cell.font = header_font
         cell.fill = header_fill
-    
+
     # Data rows
     for row_idx, log in enumerate(logs, 2):
         export_dict = log.to_export_dict()
         for col_idx, header in enumerate(headers, 1):
             ws.cell(row=row_idx, column=col_idx, value=export_dict.get(header, ""))
-    
+
     # Adjust column widths
     for col in ws.columns:
         max_length = 0
@@ -415,18 +457,18 @@ def _export_xlsx(logs: list[AuditLog]) -> StreamingResponse:
             try:
                 if len(str(cell.value)) > max_length:
                     max_length = len(str(cell.value))
-            except:
+            except Exception:
                 pass
         adjusted_width = min(max_length + 2, 50)
         ws.column_dimensions[column].width = adjusted_width
-    
+
     # Save to bytes
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
-    
+
     filename = f"audit_logs_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    
+
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -504,7 +546,9 @@ async def get_resource_audit_trail(
 
     total = query.count()
     offset = (page - 1) * page_size
-    logs = query.order_by(desc(AuditLog.timestamp)).offset(offset).limit(page_size).all()
+    logs = (
+        query.order_by(desc(AuditLog.timestamp)).offset(offset).limit(page_size).all()
+    )
 
     return {
         "resource_type": resource_type,
@@ -532,7 +576,9 @@ async def get_actor_audit_trail(
 
     total = query.count()
     offset = (page - 1) * page_size
-    logs = query.order_by(desc(AuditLog.timestamp)).offset(offset).limit(page_size).all()
+    logs = (
+        query.order_by(desc(AuditLog.timestamp)).offset(offset).limit(page_size).all()
+    )
 
     return {
         "actor_email": actor_email,
@@ -541,4 +587,3 @@ async def get_actor_audit_trail(
         "page": page,
         "page_size": page_size,
     }
-

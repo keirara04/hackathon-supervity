@@ -7,7 +7,7 @@ from logging.config import dictConfig
 # Use a third-party library for easy JSON formatting if available,
 # otherwise fall back to a basic implementation.
 try:
-    from pythonjsonlogger import jsonlogger
+    from pythonjsonlogger import jsonlogger  # noqa: F401
 
     formatter_class = "pythonjsonlogger.jsonlogger.JsonFormatter"
 except ImportError:
