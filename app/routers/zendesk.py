@@ -43,10 +43,15 @@ async def _fetch_tickets() -> tuple[list[dict], dict[str, dict]]:
             headers=headers,
         )
         if search_resp.status_code >= 300:
-            raise HTTPException(status_code=502, detail=f"Zendesk search failed: HTTP {search_resp.status_code}")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Zendesk search failed: HTTP {search_resp.status_code}",
+            )
         results = search_resp.json().get("results", [])
 
-        requester_ids = sorted({str(t["requester_id"]) for t in results if t.get("requester_id")})
+        requester_ids = sorted(
+            {str(t["requester_id"]) for t in results if t.get("requester_id")}
+        )
         identities: dict[str, dict] = {}
         if requester_ids:
             users_resp = await client.get(
@@ -56,7 +61,10 @@ async def _fetch_tickets() -> tuple[list[dict], dict[str, dict]]:
             )
             if users_resp.status_code < 300:
                 for u in users_resp.json().get("users", []):
-                    identities[str(u["id"])] = {"name": u.get("name"), "email": u.get("email")}
+                    identities[str(u["id"])] = {
+                        "name": u.get("name"),
+                        "email": u.get("email"),
+                    }
 
     return results, identities
 
@@ -64,7 +72,9 @@ async def _fetch_tickets() -> tuple[list[dict], dict[str, dict]]:
 @router.get("/tickets")
 async def list_tickets():
     if not zendesk_configured():
-        raise HTTPException(status_code=503, detail="Zendesk credentials not set in backend .env")
+        raise HTTPException(
+            status_code=503, detail="Zendesk credentials not set in backend .env"
+        )
 
     results, identities = await _fetch_tickets()
     issue_keys = [str(t["id"]) for t in results]
@@ -74,7 +84,10 @@ async def list_tickets():
         try:
             queued_rows = await sb_get(
                 "triage_queue",
-                {"issue_key": f"in.({','.join(issue_keys)})", "select": "issue_key,queue_status"},
+                {
+                    "issue_key": f"in.({','.join(issue_keys)})",
+                    "select": "issue_key,queue_status",
+                },
             )
             queued_map = {r["issue_key"]: r.get("queue_status") for r in queued_rows}
         except SupabaseError as e:
@@ -84,22 +97,24 @@ async def list_tickets():
     for t in results:
         issue_key = str(t["id"])
         req = identities.get(str(t.get("requester_id")), {})
-        tickets.append({
-            "ticket_id": t["id"],
-            "issue_key": issue_key,
-            "external_id": t.get("external_id"),
-            "subject": t.get("subject"),
-            "description": t.get("description"),
-            "priority": t.get("priority"),
-            "status": t.get("status"),
-            "tags": t.get("tags", []),
-            "created_at": t.get("created_at"),
-            "due_at": t.get("due_at"),
-            "requester_name": req.get("name"),
-            "requester_email": req.get("email"),
-            "already_queued": issue_key in queued_map,
-            "queue_status": queued_map.get(issue_key),
-        })
+        tickets.append(
+            {
+                "ticket_id": t["id"],
+                "issue_key": issue_key,
+                "external_id": t.get("external_id"),
+                "subject": t.get("subject"),
+                "description": t.get("description"),
+                "priority": t.get("priority"),
+                "status": t.get("status"),
+                "tags": t.get("tags", []),
+                "created_at": t.get("created_at"),
+                "due_at": t.get("due_at"),
+                "requester_name": req.get("name"),
+                "requester_email": req.get("email"),
+                "already_queued": issue_key in queued_map,
+                "queue_status": queued_map.get(issue_key),
+            }
+        )
 
     return {"tickets": tickets, "count": len(tickets)}
 
@@ -118,7 +133,9 @@ class ImportRequest(BaseModel):
 @router.post("/import")
 async def import_tickets(body: ImportRequest):
     if not zendesk_configured():
-        raise HTTPException(status_code=503, detail="Zendesk credentials not set in backend .env")
+        raise HTTPException(
+            status_code=503, detail="Zendesk credentials not set in backend .env"
+        )
     if not body.tickets:
         raise HTTPException(status_code=400, detail="No tickets provided")
 
@@ -141,11 +158,13 @@ async def import_tickets(body: ImportRequest):
         issue_key = str(override.ticket_id)
 
         if ticket is None:
-            outcomes.append({
-                "issue_key": issue_key,
-                "action": "error",
-                "detail": "Ticket not found in current unresolved Zendesk results (may already be solved)",
-            })
+            outcomes.append(
+                {
+                    "issue_key": issue_key,
+                    "action": "error",
+                    "detail": "Ticket not found in current unresolved Zendesk results (may already be solved)",
+                }
+            )
             continue
 
         req = identities.get(str(ticket.get("requester_id")), {})
@@ -165,7 +184,9 @@ async def import_tickets(body: ImportRequest):
 
         try:
             if issue_key in existing_keys:
-                await sb_patch("triage_queue", {"issue_key": f"eq.{issue_key}"}, intake_fields)
+                await sb_patch(
+                    "triage_queue", {"issue_key": f"eq.{issue_key}"}, intake_fields
+                )
                 outcomes.append({"issue_key": issue_key, "action": "refreshed"})
             else:
                 intake_fields["queue_status"] = "queued"
@@ -173,6 +194,8 @@ async def import_tickets(body: ImportRequest):
                 await sb_upsert("triage_queue", intake_fields, on_conflict="issue_key")
                 outcomes.append({"issue_key": issue_key, "action": "inserted"})
         except SupabaseError as e:
-            outcomes.append({"issue_key": issue_key, "action": "error", "detail": e.detail})
+            outcomes.append(
+                {"issue_key": issue_key, "action": "error", "detail": e.detail}
+            )
 
     return {"results": outcomes}

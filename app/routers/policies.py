@@ -25,7 +25,11 @@ READ_ONLY_FIELDS = {"id", "updated_at", "updated_by"}
 # Lever metadata — drives the frontend's schema-driven controls.
 # New levers added to policy_config later only need an entry here.
 LEVER_SCHEMA = [
-    {"key": "vip_always_escalate", "label": "VIP tickets always escalate", "type": "boolean"},
+    {
+        "key": "vip_always_escalate",
+        "label": "VIP tickets always escalate",
+        "type": "boolean",
+    },
     {
         "key": "min_kb_confidence",
         "label": "Minimum KB match confidence",
@@ -42,9 +46,21 @@ LEVER_SCHEMA = [
         "max": 1,
         "step": 0.05,
     },
-    {"key": "auto_eligible_departments", "label": "Departments eligible for auto-resolution", "type": "array"},
-    {"key": "allowed_categories", "label": "Allowed ticket categories", "type": "array"},
-    {"key": "change_required_components", "label": "Components requiring change approval", "type": "array"},
+    {
+        "key": "auto_eligible_departments",
+        "label": "Departments eligible for auto-resolution",
+        "type": "array",
+    },
+    {
+        "key": "allowed_categories",
+        "label": "Allowed ticket categories",
+        "type": "array",
+    },
+    {
+        "key": "change_required_components",
+        "label": "Components requiring change approval",
+        "type": "array",
+    },
     {
         "key": "major_incident_threshold",
         "label": "Major incident cluster threshold",
@@ -52,11 +68,32 @@ LEVER_SCHEMA = [
         "min": 1,
         "step": 1,
     },
-    {"key": "csat_escalate_below", "label": "Escalate if CSAT below", "type": "number", "min": 1, "max": 5, "step": 1},
-    {"key": "followup_minutes", "label": "Follow-up window (minutes)", "type": "number", "min": 1, "step": 1},
+    {
+        "key": "csat_escalate_below",
+        "label": "Escalate if CSAT below",
+        "type": "number",
+        "min": 1,
+        "max": 5,
+        "step": 1,
+    },
+    {
+        "key": "followup_minutes",
+        "label": "Follow-up window (minutes)",
+        "type": "number",
+        "min": 1,
+        "step": 1,
+    },
     {"key": "fetch_per_batch", "label": "Tickets fetched per batch", "type": "text"},
-    {"key": "escalation_email", "label": "Escalation notification email", "type": "text"},
-    {"key": "assignment_routing", "label": "Component → assignee routing", "type": "object"},
+    {
+        "key": "escalation_email",
+        "label": "Escalation notification email",
+        "type": "text",
+    },
+    {
+        "key": "assignment_routing",
+        "label": "Component → assignee routing",
+        "type": "object",
+    },
 ]
 
 VALID_KEYS = {lever["key"] for lever in LEVER_SCHEMA}
@@ -88,7 +125,9 @@ async def update_policy(body: PolicyUpdate):
     updates = body.model_dump(exclude_unset=True)
     unknown = set(updates) - VALID_KEYS
     if unknown:
-        raise HTTPException(status_code=400, detail=f"Unknown policy keys: {sorted(unknown)}")
+        raise HTTPException(
+            status_code=400, detail=f"Unknown policy keys: {sorted(unknown)}"
+        )
     if not updates:
         raise HTTPException(status_code=400, detail="No policy fields provided")
 

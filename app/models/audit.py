@@ -51,7 +51,17 @@ EXPORT:
 
 from enum import Enum
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Float, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+    func,
+)
 
 from ..core.database import Base
 
@@ -108,19 +118,27 @@ class AuditLog(Base):
     )
 
     # Who
-    actor_id = Column(String(255), nullable=True, index=True)  # User ID (null for system/anonymous)
+    actor_id = Column(
+        String(255), nullable=True, index=True
+    )  # User ID (null for system/anonymous)
     actor_email = Column(String(255), nullable=True, index=True)  # For easy reading
     actor_ip = Column(String(45), nullable=True)  # IPv4 or IPv6
     actor_user_agent = Column(Text, nullable=True)
 
     # What
-    action = Column(String(100), nullable=False, index=True)  # e.g., "user.create", "api.request"
+    action = Column(
+        String(100), nullable=False, index=True
+    )  # e.g., "user.create", "api.request"
     category = Column(String(50), nullable=False, index=True)  # AuditCategory value
     severity = Column(String(20), nullable=False, default="info")  # AuditSeverity value
 
     # On What (the target of the action)
-    resource_type = Column(String(100), nullable=True, index=True)  # e.g., "user", "item", "setting"
-    resource_id = Column(String(255), nullable=True, index=True)  # ID of the affected resource
+    resource_type = Column(
+        String(100), nullable=True, index=True
+    )  # e.g., "user", "item", "setting"
+    resource_id = Column(
+        String(255), nullable=True, index=True
+    )  # ID of the affected resource
     resource_name = Column(String(255), nullable=True)  # Human-readable name
 
     # Details
@@ -128,7 +146,9 @@ class AuditLog(Base):
     extra_data = Column(JSON, nullable=True)  # Additional structured data
 
     # Result
-    success = Column(String(10), nullable=False, default="true")  # "true", "false", "partial"
+    success = Column(
+        String(10), nullable=False, default="true"
+    )  # "true", "false", "partial"
     error_message = Column(Text, nullable=True)  # Error details if failed
 
     # Context
@@ -142,17 +162,23 @@ class AuditLog(Base):
     # These fields are populated automatically by AuditMiddleware
 
     # HTTP Request Details
-    http_method = Column(String(10), nullable=True, index=True)  # GET, POST, PUT, DELETE
+    http_method = Column(
+        String(10), nullable=True, index=True
+    )  # GET, POST, PUT, DELETE
     request_body = Column(Text, nullable=True)  # Request body (masked, truncated)
     query_params = Column(Text, nullable=True)  # Query string parameters
 
     # HTTP Response Details
-    response_status = Column(Integer, nullable=True, index=True)  # HTTP status code (200, 404, 500)
+    response_status = Column(
+        Integer, nullable=True, index=True
+    )  # HTTP status code (200, 404, 500)
     response_time_ms = Column(Float, nullable=True)  # Response time in milliseconds
     response_body = Column(Text, nullable=True)  # Response body (masked, truncated)
 
     # Source indicator
-    is_middleware = Column(Boolean, nullable=False, default=False)  # True if auto-logged by middleware
+    is_middleware = Column(
+        Boolean, nullable=False, default=False
+    )  # True if auto-logged by middleware
 
     def __repr__(self):
         return f"<AuditLog {self.id}: {self.action} by {self.actor_email}>"
@@ -175,6 +201,8 @@ class AuditLog(Base):
             "HTTP Method": self.http_method or "",
             "Endpoint": self.endpoint or "",
             "Status Code": self.response_status or "",
-            "Response Time (ms)": round(self.response_time_ms, 2) if self.response_time_ms else "",
+            "Response Time (ms)": (
+                round(self.response_time_ms, 2) if self.response_time_ms else ""
+            ),
             "Source": "Middleware" if self.is_middleware else "Custom",
         }

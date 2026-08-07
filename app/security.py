@@ -50,7 +50,9 @@ def _get_keycloak_urls() -> tuple[str, str]:
             "Keycloak configuration is incomplete. "
             "Set KEYCLOAK_SERVER_URL and KEYCLOAK_REALM environment variables."
         )
-    jwks = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
+    jwks = (
+        f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
+    )
     introspect = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token/introspect"
     return jwks, introspect
 
@@ -63,7 +65,9 @@ if AUTH_BYPASS:
 elif KEYCLOAK_SERVER_URL:
     log.info(f"Keycloak configured with server URL: {KEYCLOAK_SERVER_URL}")
 else:
-    log.warning("KEYCLOAK_SERVER_URL not set and AUTH_BYPASS not enabled — authentication will fail until configured")
+    log.warning(
+        "KEYCLOAK_SERVER_URL not set and AUTH_BYPASS not enabled — authentication will fail until configured"
+    )
 
 # auto_error=False is critical. It makes the "Authorization" header optional.
 # This allows the same dependency (`verify_access`) to process requests for

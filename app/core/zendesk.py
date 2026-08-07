@@ -15,7 +15,12 @@ ZENDESK_TOKEN_URL = os.getenv("ZENDESK_TOKEN_URL", "")
 
 
 def zendesk_configured() -> bool:
-    return bool(ZENDESK_SUBDOMAIN and ZENDESK_CLIENT_ID and ZENDESK_CLIENT_SECRET and ZENDESK_TOKEN_URL)
+    return bool(
+        ZENDESK_SUBDOMAIN
+        and ZENDESK_CLIENT_ID
+        and ZENDESK_CLIENT_SECRET
+        and ZENDESK_TOKEN_URL
+    )
 
 
 async def get_zendesk_token(client: httpx.AsyncClient) -> str | None:

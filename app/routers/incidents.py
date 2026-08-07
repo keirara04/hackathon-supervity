@@ -21,12 +21,18 @@ router = APIRouter(prefix="/incidents", tags=["Incidents"])
 async def _cluster_sizes() -> dict[str, dict]:
     rows = await sb_get(
         "run_log",
-        {"select": "ticket_id,cluster_key,resolved_at", "cluster_key": "not.is.null", "limit": "1000"},
+        {
+            "select": "ticket_id,cluster_key,resolved_at",
+            "cluster_key": "not.is.null",
+            "limit": "1000",
+        },
     )
     clusters: dict[str, dict] = {}
     for r in rows:
         key = r["cluster_key"]
-        entry = clusters.setdefault(key, {"cluster_key": key, "total": 0, "active": 0, "ticket_ids": []})
+        entry = clusters.setdefault(
+            key, {"cluster_key": key, "total": 0, "active": 0, "ticket_ids": []}
+        )
         entry["total"] += 1
         entry["ticket_ids"].append(r["ticket_id"])
         if r.get("resolved_at") is None:
@@ -39,7 +45,9 @@ async def list_incidents():
     try:
         clusters = await _cluster_sizes()
         policy = await sb_get_one("policy_config", {"id": "eq.1"})
-        declared = await sb_get("incidents", {"order": "opened_at.desc", "limit": "100"})
+        declared = await sb_get(
+            "incidents", {"order": "opened_at.desc", "limit": "100"}
+        )
     except SupabaseError as e:
         raise HTTPException(status_code=502, detail=f"Supabase error: {e.detail}")
 
@@ -112,11 +120,13 @@ async def detect_incidents():
             )
             continue
 
-        results.append({
-            "cluster_key": cluster_key,
-            "incident_id": incident_id,
-            "created": created,
-            "linked_tickets": info["active"],
-        })
+        results.append(
+            {
+                "cluster_key": cluster_key,
+                "incident_id": incident_id,
+                "created": created,
+                "linked_tickets": info["active"],
+            }
+        )
 
     return {"threshold": threshold, "detected": results, "count": len(results)}

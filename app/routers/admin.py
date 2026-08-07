@@ -58,6 +58,7 @@ def _get_keycloak_admin():
     """
     try:
         from ..services.keycloak_admin import keycloak_admin
+
         return keycloak_admin
     except ImportError:
         raise HTTPException(
@@ -73,6 +74,7 @@ def _get_keycloak_admin():
 # All call sites use `keycloak_admin.xxx()` — we make it lazy:
 class _LazyKeycloakAdmin:
     """Proxy that defers to the real keycloak_admin on attribute access."""
+
     def __getattr__(self, name):
         return getattr(_get_keycloak_admin(), name)
 
@@ -141,7 +143,10 @@ def validate_password_strength(password: str) -> tuple[bool, str]:
 
     special_chars = set("!@#$%^&*()_+-=[]{}|;:,.<>?")
     if not any(c in special_chars for c in password):
-        return False, "Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)"
+        return (
+            False,
+            "Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)",
+        )
 
     return True, ""
 
@@ -284,7 +289,9 @@ async def admin_create_user(
             await keycloak_admin.assign_role(user_id, "admin")
             result["role"] = "admin"
             result["requires_approval"] = False
-            log.info(f"[AUDIT] Admin {actor_email} created admin user {user_data.email}")
+            log.info(
+                f"[AUDIT] Admin {actor_email} created admin user {user_data.email}"
+            )
         elif user_data.role == "user":
             try:
                 await keycloak_admin.remove_role(user_id, "pending")
@@ -307,7 +314,9 @@ async def admin_create_user(
             )
 
         # Build response message
-        temp_note = " (must change on first login)" if user_data.temporaryPassword else ""
+        temp_note = (
+            " (must change on first login)" if user_data.temporaryPassword else ""
+        )
         message = f"User created with role '{result['role']}'. Share the password with them securely{temp_note}."
 
         return UserRegistrationResponse(
@@ -372,7 +381,10 @@ async def bulk_delete_users_by_domain(
             actor=user,
             affected_count=deleted_count,
             description=f"Bulk deleted {deleted_count} users from domain @{domain}",
-            metadata={"domain": domain, "deleted_emails": deleted_emails[:10]},  # First 10 for audit
+            metadata={
+                "domain": domain,
+                "deleted_emails": deleted_emails[:10],
+            },  # First 10 for audit
             request=request,
         )
         return BulkActionResponse(
@@ -666,7 +678,9 @@ async def delete_user(
     try:
         current_user_id = user.get("sub")
         if current_user_id == user_id:
-            raise HTTPException(status_code=400, detail="Cannot delete your own account")
+            raise HTTPException(
+                status_code=400, detail="Cannot delete your own account"
+            )
 
         await keycloak_admin.delete_user(user_id)
         await audit.log_user_action(
@@ -837,7 +851,9 @@ async def assign_role_to_user(
         # Verify role exists
         role = await keycloak_admin.get_role_by_name(role_data.role_name)
         if not role:
-            raise HTTPException(status_code=404, detail=f"Role '{role_data.role_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Role '{role_data.role_name}' not found"
+            )
 
         # Assign the role
         await keycloak_admin.assign_role(user_id, role_data.role_name)
@@ -1113,7 +1129,9 @@ async def create_role(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.put("/roles/{role_name}", response_model=RoleActionResponse, tags=["Admin Roles"])
+@router.put(
+    "/roles/{role_name}", response_model=RoleActionResponse, tags=["Admin Roles"]
+)
 async def update_role(
     role_name: str,
     role_data: RoleUpdateRequest,
@@ -1150,7 +1168,9 @@ async def update_role(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/roles/{role_name}", response_model=RoleActionResponse, tags=["Admin Roles"])
+@router.delete(
+    "/roles/{role_name}", response_model=RoleActionResponse, tags=["Admin Roles"]
+)
 async def delete_role(
     role_name: str,
     request: Request,
@@ -1184,7 +1204,9 @@ async def delete_role(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/roles/{role_name}/users", response_model=list[UserResponse], tags=["Admin Roles"])
+@router.get(
+    "/roles/{role_name}/users", response_model=list[UserResponse], tags=["Admin Roles"]
+)
 async def get_role_users(role_name: str, user: dict = Depends(get_current_user)):
     """
     Get all users who have a specific role.
@@ -1257,7 +1279,11 @@ async def reset_user_password(
             user_id=user_id,
             temporary=password_data.temporary,
             message="Password has been reset for user. "
-            + ("User must change password on next login." if password_data.temporary else ""),
+            + (
+                "User must change password on next login."
+                if password_data.temporary
+                else ""
+            ),
         )
     except HTTPException:
         raise
@@ -1369,7 +1395,9 @@ async def create_group(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.put("/groups/{group_id}", response_model=GroupActionResponse, tags=["Admin Groups"])
+@router.put(
+    "/groups/{group_id}", response_model=GroupActionResponse, tags=["Admin Groups"]
+)
 async def update_group(
     group_id: str,
     group_data: GroupUpdateRequest,
@@ -1407,7 +1435,9 @@ async def update_group(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/groups/{group_id}", response_model=GroupActionResponse, tags=["Admin Groups"])
+@router.delete(
+    "/groups/{group_id}", response_model=GroupActionResponse, tags=["Admin Groups"]
+)
 async def delete_group(
     group_id: str,
     request: Request,
@@ -1664,7 +1694,9 @@ async def list_all_sessions(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/sessions/stats", response_model=SessionStatsResponse, tags=["Admin Sessions"])
+@router.get(
+    "/sessions/stats", response_model=SessionStatsResponse, tags=["Admin Sessions"]
+)
 async def get_session_stats(user: dict = Depends(get_current_user)):
     """
     Get session statistics for the realm.

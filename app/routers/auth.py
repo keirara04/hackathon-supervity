@@ -95,7 +95,9 @@ async def get_pending_status(user: dict = Depends(get_current_user)):
     return {
         "is_pending": is_pending,
         "roles": roles,
-        "message": "Your account is awaiting admin approval."
-        if is_pending
-        else "Your account is active.",
+        "message": (
+            "Your account is awaiting admin approval."
+            if is_pending
+            else "Your account is active."
+        ),
     }

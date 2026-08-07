@@ -160,7 +160,9 @@ class AuditMiddleware(BaseHTTPMiddleware):
     def _truncate_body(self, body: str) -> str:
         """Truncate body to max size."""
         if len(body) > self.MAX_BODY_SIZE:
-            return body[:self.MAX_BODY_SIZE] + f"... [TRUNCATED, total {len(body)} bytes]"
+            return (
+                body[: self.MAX_BODY_SIZE] + f"... [TRUNCATED, total {len(body)} bytes]"
+            )
         return body
 
     def _parse_and_mask_body(self, body: bytes) -> Optional[str]:
@@ -181,7 +183,9 @@ class AuditMiddleware(BaseHTTPMiddleware):
         except Exception:
             return "[BINARY DATA]"
 
-    def _extract_user_from_request(self, request: Request) -> tuple[Optional[str], Optional[str]]:
+    def _extract_user_from_request(
+        self, request: Request
+    ) -> tuple[Optional[str], Optional[str]]:
         """
         Extract user info from request.
 
@@ -193,7 +197,9 @@ class AuditMiddleware(BaseHTTPMiddleware):
         if hasattr(request.state, "user"):
             user = request.state.user
             if isinstance(user, dict):
-                return user.get("sub"), user.get("email") or user.get("preferred_username")
+                return user.get("sub"), user.get("email") or user.get(
+                    "preferred_username"
+                )
 
         # Decode JWT from Authorization header
         auth_header = request.headers.get("authorization")
@@ -250,7 +256,10 @@ class AuditMiddleware(BaseHTTPMiddleware):
         # Admin endpoints
         if "/admin/" in path:
             if "/users" in path:
-                return AuditCategory.USER_MANAGEMENT, f"api.{method.lower()}.admin.users"
+                return (
+                    AuditCategory.USER_MANAGEMENT,
+                    f"api.{method.lower()}.admin.users",
+                )
             if "/settings" in path:
                 return AuditCategory.SETTINGS, f"api.{method.lower()}.admin.settings"
             if "/audit" in path:
@@ -312,7 +321,9 @@ class AuditMiddleware(BaseHTTPMiddleware):
             actor_id, actor_email = self._extract_user_from_request(request)
 
             # Get category and action
-            category, action = self._categorize_endpoint(request.url.path, request.method)
+            category, action = self._categorize_endpoint(
+                request.url.path, request.method
+            )
 
             # Determine status code and severity
             status_code = response.status_code if response else 500
@@ -336,8 +347,16 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     actor_ip=self._get_client_ip(request),
                     actor_user_agent=request.headers.get("user-agent"),
                     action=action,
-                    category=category.value if isinstance(category, AuditCategory) else category,
-                    severity=severity.value if isinstance(severity, AuditSeverity) else severity,
+                    category=(
+                        category.value
+                        if isinstance(category, AuditCategory)
+                        else category
+                    ),
+                    severity=(
+                        severity.value
+                        if isinstance(severity, AuditSeverity)
+                        else severity
+                    ),
                     description=description,
                     endpoint=request.url.path,
                     http_method=request.method,
