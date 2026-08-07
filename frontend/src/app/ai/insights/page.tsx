@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { apiClient } from '@/lib/api-client'
 
 type Severity = 'critical' | 'warning' | 'info'
-type InsightType = 'pattern' | 'anomaly' | 'recommendation'
+type InsightType = 'pattern' | 'anomaly' | 'recommendation' | 'self_learning'
 
 interface Insight {
   type: InsightType
@@ -19,6 +19,7 @@ interface Insight {
   description: string
   action: string
   confidence: number
+  suggested_patch?: Record<string, unknown>
 }
 
 interface InsightsResponse {
@@ -42,12 +43,15 @@ const TYPE_LABEL: Record<InsightType, string> = {
   pattern: 'Pattern',
   anomaly: 'Anomaly',
   recommendation: 'Recommendation',
+  self_learning: 'Self-Learning',
 }
 
 export default function InsightsPage() {
   const [data, setData] = useState<InsightsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [applying, setApplying] = useState<number | null>(null)
+  const [appliedIdx, setAppliedIdx] = useState<Set<number>>(new Set())
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -65,6 +69,18 @@ export default function InsightsPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  async function applyPatch(idx: number, patch: Record<string, unknown>) {
+    setApplying(idx)
+    try {
+      await apiClient.patch('/api/policies', patch)
+      setAppliedIdx((prev) => new Set(prev).add(idx))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to apply policy change')
+    } finally {
+      setApplying(null)
+    }
+  }
 
   return (
     <motion.div className='space-y-8' variants={containerVariants} initial='hidden' animate='visible'>
@@ -141,9 +157,33 @@ export default function InsightsPage() {
                       {insight.action}
                     </p>
                   </div>
-                  <p className='mt-2 text-right text-xs text-muted-foreground'>
-                    confidence {Math.round(insight.confidence * 100)}%
-                  </p>
+                  <div className='mt-2 flex items-center justify-between'>
+                    {insight.type === 'self_learning' && insight.suggested_patch ? (
+                      appliedIdx.has(i) ? (
+                        <span className='flex items-center gap-1 text-xs font-medium text-emerald-500'>
+                          <Icons.checkCircle className='h-3.5 w-3.5' />
+                          Applied
+                        </span>
+                      ) : (
+                        <Button
+                          variant='gradient'
+                          size='sm'
+                          disabled={applying === i}
+                          onClick={() => applyPatch(i, insight.suggested_patch!)}
+                        >
+                          {applying === i ? (
+                            <Icons.loader className='mr-2 h-3.5 w-3.5 animate-spin' />
+                          ) : (
+                            <Icons.zap className='mr-2 h-3.5 w-3.5' />
+                          )}
+                          Apply this change
+                        </Button>
+                      )
+                    ) : (
+                      <span />
+                    )}
+                    <p className='text-xs text-muted-foreground'>confidence {Math.round(insight.confidence * 100)}%</p>
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>

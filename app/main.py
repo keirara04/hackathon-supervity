@@ -37,15 +37,20 @@ from .core.storage import GCSStorage, LocalStorage, StorageBackend
 from .middleware import AuditMiddleware
 from .routers import (
     admin_router,
+    ai_router,
     audit_router,
     auth_router,
     dashboard_router,
     data_manager_router,
     examples_router,
     health_router,
+    incidents_router,
     insights_router,
     items_router,
+    kb_articles_router,
     policies_router,
+    run_log_router,
+    triage_queue_router,
     workbench_router,
 )
 from .security import get_current_user, verify_access
@@ -173,6 +178,21 @@ api_router.include_router(insights_router)
 
 # Dashboard KPIs
 api_router.include_router(dashboard_router)
+
+# AI Manager — grounded chat + orchestrator trigger
+api_router.include_router(ai_router)
+
+# Knowledge Base — articles the Diagnose operator matches against
+api_router.include_router(kb_articles_router)
+
+# Run Log — pipeline ledger (run rollups + ticket-level rows)
+api_router.include_router(run_log_router)
+
+# Triage Queue — tickets ranked, waiting to be released into a run
+api_router.include_router(triage_queue_router)
+
+# Incidents — major-incident detection from run_log cluster_key groupings
+api_router.include_router(incidents_router)
 
 
 # =============================================================================
