@@ -10,8 +10,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-app_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     restart: unless-stopped
     networks:
       - app-network
@@ -32,7 +30,7 @@ services:
       - ./alembic.ini:/app/alembic.ini
       - document_storage:/app/document_storage
     ports:
-      - "127.0.0.1:8001:8000"
+      - "8001:8000"
     environment:
       - APP_ENV=${APP_ENV:-development}
       - AUTH_BYPASS=${AUTH_BYPASS:-true}
@@ -56,7 +54,7 @@ services:
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
         - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH:-}
     ports:
-      - "127.0.0.1:3001:3000"
+      - "8080:3000"
     environment:
       - NODE_ENV=production
     env_file:
