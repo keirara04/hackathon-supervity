@@ -64,7 +64,7 @@ export default function TriageQueuePage() {
 
   return (
     <motion.div className='space-y-8' variants={containerVariants} initial='hidden' animate='visible'>
-      <motion.div variants={itemVariants} className='flex items-center justify-between'>
+      <motion.div variants={itemVariants} className='flex flex-wrap items-center justify-between gap-3'>
         <div>
           <h1 className='text-display-3 font-bold tracking-tight text-brand-navy'>Triage Queue</h1>
           <p className='mt-2 text-lg text-muted-foreground'>
@@ -72,8 +72,8 @@ export default function TriageQueuePage() {
           </p>
         </div>
         <Button variant='outline' size='sm' onClick={load} disabled={loading}>
-          <Icons.refresh className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-          Refresh
+          <Icons.refresh className={cn('sm:mr-2 h-4 w-4', loading && 'animate-spin')} />
+          <span className='hidden sm:inline'>Refresh</span>
         </Button>
       </motion.div>
 
@@ -95,7 +95,56 @@ export default function TriageQueuePage() {
             <CardDescription>Highest priority_score first — what the Orchestrator would pick up next.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className='overflow-x-auto'>
+            {/* Mobile: stacked cards, no horizontal scrolling */}
+            <div className='space-y-3 sm:hidden'>
+              {items.map((item) => (
+                <div key={item.issue_key} className='rounded-lg border border-border p-3'>
+                  <div className='flex items-center justify-between'>
+                    <span className='font-medium'>
+                      {item.issue_key}
+                      {item.is_vip && (
+                        <span className='ml-2 rounded-full bg-brand-purple/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-brand-purple'>
+                          VIP
+                        </span>
+                      )}
+                    </span>
+                    <span
+                      className={cn(
+                        'rounded-full px-2 py-0.5 text-xs font-medium',
+                        SLA_STYLES[item.sla_state ?? ''] ?? 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {item.sla_state ?? 'unknown'}
+                    </span>
+                  </div>
+                  <p className='mt-1.5 text-sm text-muted-foreground'>{item.summary}</p>
+                  <div className='mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
+                    <span className='font-mono'>{item.priority_tier ?? '—'}</span>
+                    <span>({item.priority_score ?? '—'})</span>
+                    {item.department && <span>· {item.department}</span>}
+                    {item.channel && <span>· {item.channel}</span>}
+                  </div>
+                  {item.cluster_key && (
+                    <span
+                      className={cn(
+                        'mt-2 inline-block rounded-full px-2 py-0.5 text-xs',
+                        (clusterSizes[item.cluster_key] ?? 0) > 2
+                          ? 'bg-red-500/15 text-red-400'
+                          : 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {item.cluster_key} ({clusterSizes[item.cluster_key]})
+                    </span>
+                  )}
+                </div>
+              ))}
+              {items.length === 0 && !loading && (
+                <p className='py-8 text-center text-sm text-muted-foreground'>Queue is empty.</p>
+              )}
+            </div>
+
+            {/* Desktop/tablet: full table */}
+            <div className='hidden overflow-x-auto sm:block'>
               <table className='w-full text-sm'>
                 <thead>
                   <tr className='border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground'>
@@ -166,6 +215,7 @@ export default function TriageQueuePage() {
               )}
             </div>
           </CardContent>
+
         </Card>
       </motion.div>
     </motion.div>

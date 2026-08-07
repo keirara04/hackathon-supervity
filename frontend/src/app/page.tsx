@@ -1,22 +1,30 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, memo } from 'react'
+import dynamic from 'next/dynamic'
 import { motion, useInView } from 'framer-motion'
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CardWatermark } from '@/components/ui/card-watermark'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Icons } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { apiClient } from '@/lib/api-client'
+import { formatTimestamp } from '@/lib/format'
+import { useDashboardKPIs } from '@/hooks'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+
+// Recharts is a heavy dependency the initial paint doesn't need — split it
+// into its own chunk, loaded client-side only, with a skeleton in the meantime.
+const VolumeChart = dynamic(() => import('@/components/dashboard/VolumeChart'), {
+  ssr: false,
+  loading: () => (
+    <Card className='relative overflow-hidden'>
+      <CardContent className='pt-6'>
+        <Skeleton className='h-[240px] w-full' />
+      </CardContent>
+    </Card>
+  ),
+})
 
 // Animation variants
 const containerVariants = {
@@ -40,19 +48,6 @@ const itemVariants = {
       ease: [0.25, 0.46, 0.45, 0.94],
     },
   },
-}
-
-interface DashboardKPIs {
-  total_tickets: number
-  path_breakdown: { auto: number; human: number; pending: number }
-  auto_resolution_rate_pct: number | null
-  sla_compliance_pct_at_intake: number | null
-  avg_mttr_minutes: number | null
-  resolved_count: number
-  vip_ticket_count: number
-  volume_by_day: { date: string; count: number }[]
-  department_breakdown: Record<string, number>
-  computed_at: string
 }
 
 // Animated number component — re-animates from its previous value every
@@ -122,7 +117,7 @@ interface StatCardProps {
   delay?: number
 }
 
-function StatCard({ title, value, suffix = '', icon: Icon, colorClass, delay = 0 }: StatCardProps) {
+const StatCard = memo(function StatCard({ title, value, suffix = '', icon: Icon, colorClass, delay = 0 }: StatCardProps) {
   const prevValue = useRef<number | null>(null)
   const [justChanged, setJustChanged] = useState(false)
 
@@ -177,7 +172,7 @@ function StatCard({ title, value, suffix = '', icon: Icon, colorClass, delay = 0
       </Card>
     </motion.div>
   )
-}
+})
 
 // Hero Section
 function HeroSection({ userName }: { userName?: string }) {
@@ -198,70 +193,6 @@ function HeroSection({ userName }: { userName?: string }) {
         Welcome back, {firstName}. Your AI Command Center is ready.
       </p>
     </motion.div>
-  )
-}
-
-function VolumeChart({ data }: { data: { date: string; count: number }[] }) {
-  const total = data.reduce((acc, d) => acc + d.count, 0)
-
-  return (
-    <Card className='relative overflow-hidden'>
-      <CardWatermark opacity={4} scale={1.2} />
-      <CardHeader className='pb-2'>
-        <div className='flex items-center justify-between'>
-          <div>
-            <CardTitle className='flex items-center gap-2'>
-              <Icons.activity className='h-5 w-5 text-brand-cornflower' strokeWidth={1.5} />
-              Ticket Volume
-            </CardTitle>
-            <p className='mt-1 text-sm text-muted-foreground'>Tickets entering the pipeline per day</p>
-          </div>
-          <div className='text-right'>
-            <p className='text-micro uppercase text-brand-muted'>Total</p>
-            <p className='font-display text-lg font-bold text-brand-navy'>{total.toLocaleString()}</p>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className='pt-0'>
-        <div className='mt-4 h-[240px] w-full'>
-          {data.length === 0 ? (
-            <div className='flex h-full items-center justify-center text-sm text-muted-foreground'>
-              No ticket volume data yet
-            </div>
-          ) : (
-            <ResponsiveContainer width='100%' height='100%'>
-              <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id='gradientVolume' x1='0' y1='0' x2='0' y2='1'>
-                    <stop offset='0%' stopColor='#5B8DEF' stopOpacity={0.4} />
-                    <stop offset='95%' stopColor='#5B8DEF' stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray='3 3' stroke='rgba(20, 26, 66, 0.06)' vertical={false} />
-                <XAxis
-                  dataKey='date'
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#7B8AB8', fontSize: 11, fontWeight: 500 }}
-                  dy={8}
-                />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#7B8AB8', fontSize: 11 }} />
-                <Tooltip />
-                <Area
-                  type='monotone'
-                  dataKey='count'
-                  name='Tickets'
-                  stroke='#5B8DEF'
-                  strokeWidth={2.5}
-                  fill='url(#gradientVolume)'
-                  dot={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 
@@ -299,57 +230,24 @@ function DepartmentBreakdown({ data }: { data: Record<string, number> }) {
 }
 
 export default function HomePage() {
-  const [kpis, setKpis] = useState<DashboardKPIs | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [now, setNow] = useState(() => Date.now())
-
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true)
-    setError(null)
-    try {
-      const res = await apiClient.get<DashboardKPIs>('/api/dashboard/kpis')
-      setKpis(res)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load dashboard KPIs')
-    } finally {
-      if (!silent) setLoading(false)
-    }
-  }, [])
-
-  // Auto-refresh every 15s so the dashboard reflects the live pipeline
-  // without a manual click — polls trigger AnimatedNumber's re-animation
-  // and StatCard's change-flash automatically since kpis just updates.
-  useEffect(() => {
-    load()
-    const interval = setInterval(() => load(true), 15000)
-    return () => clearInterval(interval)
-  }, [load])
-
-  // Ticks the "updated Xs ago" label in the live badge.
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(t)
-  }, [])
-
-  const secondsAgo = kpis ? Math.max(0, Math.round((now - new Date(kpis.computed_at).getTime()) / 1000)) : null
+  const { kpis, loading, error, reload } = useDashboardKPIs()
 
   return (
     <motion.div className='space-y-6' variants={containerVariants} initial='hidden' animate='visible'>
-      <div className='flex items-center justify-between'>
+      <div className='flex flex-wrap items-center justify-between gap-3'>
         <HeroSection userName='Developer' />
         <div className='flex shrink-0 items-center gap-3'>
-          <div className='flex items-center gap-2 rounded-full border border-border bg-muted/10 px-3 py-1.5 text-xs text-muted-foreground'>
+          <div className='flex items-center gap-2 rounded-full border border-border bg-muted/10 px-2 py-1 text-[11px] text-muted-foreground sm:px-3 sm:py-1.5 sm:text-xs'>
             <span className='relative flex h-2 w-2'>
               <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75' />
               <span className='relative inline-flex h-2 w-2 rounded-full bg-emerald-500' />
             </span>
             <span className='font-medium text-foreground'>Live</span>
-            {secondsAgo !== null && <span>· updated {secondsAgo}s ago</span>}
+            {kpis && <span>· updated {formatTimestamp(kpis.computed_at)}</span>}
           </div>
-          <Button variant='outline' size='sm' onClick={() => load()} disabled={loading}>
-            <Icons.refresh className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-            Refresh
+          <Button variant='outline' size='sm' onClick={() => reload()} disabled={loading}>
+            <Icons.refresh className={cn('sm:mr-2 h-4 w-4', loading && 'animate-spin')} />
+            <span className='hidden sm:inline'>Refresh</span>
           </Button>
         </div>
       </div>
@@ -365,73 +263,75 @@ export default function HomePage() {
         </motion.div>
       )}
 
-      {/* Stats Grid - Bento style, live from run_log */}
-      <div className='grid grid-cols-2 gap-4 lg:grid-cols-4'>
-        <StatCard
-          title='Total Tickets'
-          value={kpis?.total_tickets ?? null}
-          icon={Icons.fileText}
-          colorClass='bg-brand-navy'
-          delay={0.1}
-        />
-        <StatCard
-          title='Auto-Resolution Rate'
-          value={kpis?.auto_resolution_rate_pct ?? null}
-          suffix='%'
-          icon={Icons.zap}
-          colorClass='bg-brand-cornflower'
-          delay={0.2}
-        />
-        <StatCard
-          title='SLA Compliance (intake)'
-          value={kpis?.sla_compliance_pct_at_intake ?? null}
-          suffix='%'
-          icon={Icons.checkCircle}
-          colorClass='bg-brand-purple'
-          delay={0.3}
-        />
-        <StatCard
-          title='Avg MTTR'
-          value={kpis?.avg_mttr_minutes ?? null}
-          suffix='min'
-          icon={Icons.clock}
-          colorClass='bg-gradient-to-br from-brand-navy to-brand-purple'
-          delay={0.4}
-        />
-      </div>
+      <ErrorBoundary>
+        {/* Stats Grid - Bento style, live from run_log */}
+        <div className='grid grid-cols-2 gap-4 lg:grid-cols-4'>
+          <StatCard
+            title='Total Tickets'
+            value={kpis?.total_tickets ?? null}
+            icon={Icons.fileText}
+            colorClass='bg-brand-navy'
+            delay={0.1}
+          />
+          <StatCard
+            title='Auto-Resolution Rate'
+            value={kpis?.auto_resolution_rate_pct ?? null}
+            suffix='%'
+            icon={Icons.zap}
+            colorClass='bg-brand-cornflower'
+            delay={0.2}
+          />
+          <StatCard
+            title='SLA Compliance (intake)'
+            value={kpis?.sla_compliance_pct_at_intake ?? null}
+            suffix='%'
+            icon={Icons.checkCircle}
+            colorClass='bg-brand-purple'
+            delay={0.3}
+          />
+          <StatCard
+            title='Avg MTTR'
+            value={kpis?.avg_mttr_minutes ?? null}
+            suffix='min'
+            icon={Icons.clock}
+            colorClass='bg-gradient-to-br from-brand-navy to-brand-purple'
+            delay={0.4}
+          />
+        </div>
 
-      <div className='grid gap-6 lg:grid-cols-3'>
-        <motion.div variants={itemVariants} className='lg:col-span-2'>
-          <VolumeChart data={kpis?.volume_by_day ?? []} />
-        </motion.div>
-        <motion.div variants={itemVariants}>
-          <DepartmentBreakdown data={kpis?.department_breakdown ?? {}} />
-        </motion.div>
-      </div>
+        <div className='mt-6 grid gap-6 lg:grid-cols-3'>
+          <motion.div variants={itemVariants} className='lg:col-span-2'>
+            <VolumeChart data={kpis?.volume_by_day ?? []} />
+          </motion.div>
+          <motion.div variants={itemVariants}>
+            <DepartmentBreakdown data={kpis?.department_breakdown ?? {}} />
+          </motion.div>
+        </div>
 
-      {kpis && (
-        <motion.div variants={itemVariants}>
-          <Card>
-            <CardContent className='flex flex-wrap items-center gap-6 py-4 text-sm'>
-              <span>
-                <span className='font-semibold text-emerald-500'>{kpis.path_breakdown.auto}</span> auto-resolved
-              </span>
-              <span>
-                <span className='font-semibold text-amber-500'>{kpis.path_breakdown.human}</span> human-routed
-              </span>
-              <span>
-                <span className='font-semibold text-muted-foreground'>{kpis.path_breakdown.pending}</span> pending
-              </span>
-              <span>
-                <span className='font-semibold'>{kpis.vip_ticket_count}</span> VIP tickets
-              </span>
-              <span className='ml-auto text-xs text-muted-foreground'>
-                Computed {new Date(kpis.computed_at).toLocaleString()}
-              </span>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
+        {kpis && (
+          <motion.div variants={itemVariants} className='mt-6'>
+            <Card>
+              <CardContent className='flex flex-wrap items-center gap-6 py-4 text-sm'>
+                <span>
+                  <span className='font-semibold text-emerald-500'>{kpis.path_breakdown.auto}</span> auto-resolved
+                </span>
+                <span>
+                  <span className='font-semibold text-amber-500'>{kpis.path_breakdown.human}</span> human-routed
+                </span>
+                <span>
+                  <span className='font-semibold text-muted-foreground'>{kpis.path_breakdown.pending}</span> pending
+                </span>
+                <span>
+                  <span className='font-semibold'>{kpis.vip_ticket_count}</span> VIP tickets
+                </span>
+                <span className='ml-auto text-xs text-muted-foreground'>
+                  Computed {formatTimestamp(kpis.computed_at)}
+                </span>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </ErrorBoundary>
     </motion.div>
   )
 }

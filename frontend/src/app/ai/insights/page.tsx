@@ -84,7 +84,7 @@ export default function InsightsPage() {
 
   return (
     <motion.div className='space-y-8' variants={containerVariants} initial='hidden' animate='visible'>
-      <motion.div variants={itemVariants} className='flex items-center justify-between'>
+      <motion.div variants={itemVariants} className='flex flex-wrap items-center justify-between gap-3'>
         <div>
           <h1 className='text-display-3 font-bold tracking-tight text-brand-navy'>AI Insights</h1>
           <p className='mt-2 text-lg text-muted-foreground'>

@@ -185,7 +185,7 @@ export default function DataManagerPage() {
 
   return (
     <motion.div className='space-y-8' variants={containerVariants} initial='hidden' animate='visible'>
-      <motion.div variants={itemVariants} className='flex items-center justify-between'>
+      <motion.div variants={itemVariants} className='flex flex-wrap items-center justify-between gap-3'>
         <div>
           <h1 className='text-display-3 font-bold tracking-tight text-brand-navy'>Data Manager</h1>
           <p className='mt-2 text-lg text-muted-foreground'>
@@ -193,7 +193,7 @@ export default function DataManagerPage() {
           </p>
         </div>
         <div className='flex shrink-0 items-center gap-3'>
-          <div className='flex items-center gap-2 rounded-full border border-border bg-muted/10 px-3 py-1.5 text-xs text-muted-foreground'>
+          <div className='flex items-center gap-2 rounded-full border border-border bg-muted/10 px-2 py-1 text-[11px] text-muted-foreground sm:px-3 sm:py-1.5 sm:text-xs'>
             <span className='relative flex h-2 w-2'>
               <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75' />
               <span className='relative inline-flex h-2 w-2 rounded-full bg-emerald-500' />
@@ -202,8 +202,8 @@ export default function DataManagerPage() {
             {secondsAgo !== null && <span>· updated {secondsAgo}s ago</span>}
           </div>
           <Button variant='outline' size='sm' onClick={() => load()} disabled={loading}>
-            <Icons.refresh className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-            Recheck
+            <Icons.refresh className={cn('sm:mr-2 h-4 w-4', loading && 'animate-spin')} />
+            <span className='hidden sm:inline'>Recheck</span>
           </Button>
         </div>
       </motion.div>

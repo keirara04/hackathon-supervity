@@ -76,7 +76,7 @@ export default function KnowledgeBasePage() {
 
   return (
     <motion.div className='space-y-8' variants={containerVariants} initial='hidden' animate='visible'>
-      <motion.div variants={itemVariants} className='flex items-center justify-between'>
+      <motion.div variants={itemVariants} className='flex flex-wrap items-center justify-between gap-3'>
         <div>
           <h1 className='text-display-3 font-bold tracking-tight text-brand-navy'>Knowledge Base</h1>
           <p className='mt-2 text-lg text-muted-foreground'>
@@ -84,8 +84,8 @@ export default function KnowledgeBasePage() {
           </p>
         </div>
         <Button variant='outline' size='sm' onClick={load} disabled={loading}>
-          <Icons.refresh className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-          Refresh
+          <Icons.refresh className={cn('sm:mr-2 h-4 w-4', loading && 'animate-spin')} />
+          <span className='hidden sm:inline'>Refresh</span>
         </Button>
       </motion.div>
 

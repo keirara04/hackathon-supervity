@@ -5,30 +5,13 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Logomark } from '@/components/brand'
-import { Icons } from '@/components/ui/icons'
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-
-// Navigation items configuration
-const navItems = [
-  {
-    title: 'Platform',
-    items: [
-      { href: '/', label: 'Dashboard', icon: Icons.dashboard },
-      { href: '/workbench', label: 'Workbench', icon: Icons.workbench },
-    ],
-  },
-  {
-    title: 'System',
-    items: [
-      { href: '/settings', label: 'Settings', icon: Icons.settings },
-    ],
-  },
-]
+import { navItems } from './Sidebar'
 
 interface NavLinkProps {
   href: string

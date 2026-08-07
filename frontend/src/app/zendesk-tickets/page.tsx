@@ -117,7 +117,7 @@ export default function ZendeskTicketsPage() {
 
   return (
     <motion.div className='space-y-8' variants={containerVariants} initial='hidden' animate='visible'>
-      <motion.div variants={itemVariants} className='flex items-center justify-between'>
+      <motion.div variants={itemVariants} className='flex flex-wrap items-center justify-between gap-3'>
         <div>
           <h1 className='text-display-3 font-bold tracking-tight text-brand-navy'>Zendesk Tickets</h1>
           <p className='mt-2 text-lg text-muted-foreground'>
@@ -128,16 +128,16 @@ export default function ZendeskTicketsPage() {
           {selected.size > 0 && (
             <Button variant='gradient' size='sm' onClick={importSelected} disabled={importing}>
               {importing ? (
-                <Icons.loader className='mr-2 h-4 w-4 animate-spin' />
+                <Icons.loader className='h-4 w-4 animate-spin sm:mr-2' />
               ) : (
-                <Icons.download className='mr-2 h-4 w-4' />
+                <Icons.download className='h-4 w-4 sm:mr-2' />
               )}
-              Import selected ({selected.size})
+              <span className='hidden sm:inline'>Import selected</span> ({selected.size})
             </Button>
           )}
           <Button variant='outline' size='sm' onClick={load} disabled={loading}>
-            <Icons.refresh className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-            Refresh
+            <Icons.refresh className={cn('sm:mr-2 h-4 w-4', loading && 'animate-spin')} />
+            <span className='hidden sm:inline'>Refresh</span>
           </Button>
         </div>
       </motion.div>
@@ -171,7 +171,81 @@ export default function ZendeskTicketsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className='overflow-x-auto'>
+              {/* Mobile: stacked cards, no horizontal scrolling */}
+              <div className='space-y-3 sm:hidden'>
+                {tickets.map((t) => {
+                  const isEditing = editingId === t.ticket_id
+                  const result = results[t.issue_key]
+                  return (
+                    <div key={t.ticket_id} className='rounded-lg border border-border p-3'>
+                      <div className='flex items-start justify-between gap-2'>
+                        <div className='flex items-center gap-2'>
+                          <input
+                            type='checkbox'
+                            checked={selected.has(t.ticket_id)}
+                            onChange={() => toggleSelect(t.ticket_id)}
+                            className='h-4 w-4 rounded border-border'
+                          />
+                          <span className='font-medium'>#{t.ticket_id}</span>
+                        </div>
+                        {result ? (
+                          <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', RESULT_STYLES[result.action])}>
+                            {result.action}
+                          </span>
+                        ) : t.already_queued ? (
+                          <span className='rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-500'>
+                            Already queued
+                          </span>
+                        ) : (
+                          <span className='rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-500'>
+                            Not queued
+                          </span>
+                        )}
+                      </div>
+
+                      <div className='mt-2'>
+                        {isEditing ? (
+                          <input
+                            autoFocus
+                            defaultValue={edits[t.ticket_id]?.summary ?? t.subject}
+                            onChange={(e) => setEdit(t.ticket_id, 'summary', e.target.value)}
+                            onBlur={() => setEditingId(null)}
+                            className='w-full rounded border border-primary/50 bg-background px-2 py-1 text-sm outline-none'
+                          />
+                        ) : (
+                          <button
+                            onClick={() => setEditingId(t.ticket_id)}
+                            className='flex w-full items-center gap-1 text-left text-sm hover:text-primary'
+                            title='Tap to edit before import'
+                          >
+                            <span className='truncate'>{edits[t.ticket_id]?.summary ?? t.subject}</span>
+                            <Icons.pencil className='h-3 w-3 shrink-0 text-muted-foreground' />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className='mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
+                        <span>{t.requester_name ?? '—'}</span>
+                        <span
+                          className={cn(
+                            'rounded-full px-2 py-0.5 font-medium',
+                            PRIORITY_STYLES[t.priority ?? ''] ?? 'bg-muted text-muted-foreground'
+                          )}
+                        >
+                          {t.priority ?? 'none'}
+                        </span>
+                        <span className='capitalize'>{t.status}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+                {tickets.length === 0 && (
+                  <p className='py-8 text-center text-sm text-muted-foreground'>No unresolved tickets found.</p>
+                )}
+              </div>
+
+              {/* Desktop/tablet: full table with inline editing */}
+              <div className='hidden overflow-x-auto sm:block'>
                 <table className='w-full text-sm'>
                   <thead>
                     <tr className='border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground'>

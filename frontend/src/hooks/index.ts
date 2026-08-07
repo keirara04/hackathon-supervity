@@ -1,1 +1,5 @@
 export { useSessionRefresh } from './useSessionRefresh'
+export { useDashboardKPIs } from './useDashboardKPIs'
+export type { DashboardKPIs } from './useDashboardKPIs'
+export { useWorkbenchQueue } from './useWorkbenchQueue'
+export type { WorkbenchTask, Enrichment } from './useWorkbenchQueue'

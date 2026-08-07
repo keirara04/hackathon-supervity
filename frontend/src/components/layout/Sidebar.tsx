@@ -57,7 +57,9 @@ interface NavSection {
   items: NavItem[]
 }
 
-const navItems: NavSection[] = [
+// Exported so MobileSidebar renders the exact same nav — previously it had
+// its own hardcoded, stale copy that only listed Dashboard/Workbench/Settings.
+export const navItems: NavSection[] = [
   {
     title: 'Platform',
     items: [

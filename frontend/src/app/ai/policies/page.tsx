@@ -95,7 +95,7 @@ function LeverControl({
           )
         }
         placeholder='comma, separated, values'
-        className='w-72 rounded-lg border border-border bg-muted/10 px-3 py-1.5 text-sm outline-none focus:border-primary/50'
+        className='w-full rounded-lg border border-border bg-muted/10 px-3 py-1.5 text-sm outline-none focus:border-primary/50 sm:w-72'
       />
     )
   }
@@ -113,7 +113,7 @@ function LeverControl({
             // ignore invalid JSON until corrected
           }
         }}
-        className='w-72 rounded-lg border border-border bg-muted/10 px-3 py-1.5 font-mono text-xs outline-none focus:border-primary/50'
+        className='w-full rounded-lg border border-border bg-muted/10 px-3 py-1.5 font-mono text-xs outline-none focus:border-primary/50 sm:w-72'
       />
     )
   }
@@ -123,7 +123,7 @@ function LeverControl({
       type='text'
       value={typeof value === 'string' ? value : ''}
       onChange={(e) => onChange(e.target.value)}
-      className='w-72 rounded-lg border border-border bg-muted/10 px-3 py-1.5 text-sm outline-none focus:border-primary/50'
+      className='w-full rounded-lg border border-border bg-muted/10 px-3 py-1.5 text-sm outline-none focus:border-primary/50 sm:w-72'
     />
   )
 }
@@ -195,7 +195,7 @@ export default function PoliciesPage() {
       initial='hidden'
       animate='visible'
     >
-      <motion.div variants={itemVariants} className='flex items-start justify-between'>
+      <motion.div variants={itemVariants} className='flex flex-wrap items-start justify-between gap-3'>
         <div>
           <h1 className='text-display-3 font-bold tracking-tight text-brand-navy'>AI Policies</h1>
           <p className='mt-2 text-lg text-muted-foreground'>
@@ -292,7 +292,41 @@ export default function PoliciesPage() {
             <CardDescription>Every policy evaluation the Orchestrator has run, most recent first.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className='overflow-x-auto'>
+            {/* Mobile: stacked cards, no horizontal scrolling */}
+            <div className='space-y-3 sm:hidden'>
+              {log.map((row) => (
+                <div key={row.id} className='rounded-lg border border-border p-3'>
+                  <div className='flex items-center justify-between'>
+                    <span className='font-medium'>{row.ticket_id}</span>
+                    <span
+                      className={cn(
+                        'rounded-full px-2 py-0.5 text-xs font-medium',
+                        VERDICT_STYLES[row.verdict] ?? 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {row.verdict}
+                    </span>
+                  </div>
+                  <p className='mt-1.5 text-sm text-muted-foreground'>{row.reason}</p>
+                  {(row.policy_hits ?? []).length > 0 && (
+                    <div className='mt-1.5 flex flex-wrap gap-1'>
+                      {(row.policy_hits ?? []).map((hit) => (
+                        <span key={hit} className='rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground'>
+                          {hit}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <p className='mt-1.5 text-xs text-muted-foreground'>{new Date(row.evaluated_at).toLocaleString()}</p>
+                </div>
+              ))}
+              {log.length === 0 && !loading && (
+                <p className='py-8 text-center text-sm text-muted-foreground'>No evaluations logged yet.</p>
+              )}
+            </div>
+
+            {/* Desktop/tablet: full table */}
+            <div className='hidden overflow-x-auto sm:block'>
               <table className='w-full text-sm'>
                 <thead>
                   <tr className='border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground'>

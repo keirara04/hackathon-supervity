@@ -80,14 +80,14 @@ export default function RunLogPage() {
 
   return (
     <motion.div className='space-y-8' variants={containerVariants} initial='hidden' animate='visible'>
-      <motion.div variants={itemVariants} className='flex items-center justify-between'>
+      <motion.div variants={itemVariants} className='flex flex-wrap items-center justify-between gap-3'>
         <div>
           <h1 className='text-display-3 font-bold tracking-tight text-brand-navy'>Run Log</h1>
           <p className='mt-2 text-lg text-muted-foreground'>The full pipeline ledger — every run and every ticket it touched.</p>
         </div>
         <Button variant='outline' size='sm' onClick={load} disabled={loading}>
-          <Icons.refresh className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-          Refresh
+          <Icons.refresh className={cn('sm:mr-2 h-4 w-4', loading && 'animate-spin')} />
+          <span className='hidden sm:inline'>Refresh</span>
         </Button>
       </motion.div>
 
@@ -145,9 +145,9 @@ export default function RunLogPage() {
       <motion.div variants={itemVariants}>
         <Card>
           <CardHeader>
-            <div className='flex items-center justify-between'>
+            <div className='flex flex-wrap items-center justify-between gap-2'>
               <CardTitle>Tickets</CardTitle>
-              <div className='flex gap-2'>
+              <div className='flex flex-wrap gap-2'>
                 {['all', 'auto', 'human', 'pending'].map((p) => (
                   <button
                     key={p}
@@ -166,7 +166,37 @@ export default function RunLogPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className='overflow-x-auto'>
+            {/* Mobile: stacked cards, no horizontal scrolling */}
+            <div className='space-y-3 sm:hidden'>
+              {filteredTickets.map((t) => (
+                <div key={t.id} className='rounded-lg border border-border p-3'>
+                  <div className='flex items-center justify-between'>
+                    <span className='font-medium'>{t.ticket_id}</span>
+                    <span
+                      className={cn(
+                        'rounded-full px-2 py-0.5 text-xs font-medium',
+                        PATH_STYLES[t.path ?? ''] ?? 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {t.path ?? 'unknown'}
+                    </span>
+                  </div>
+                  <p className='mt-1.5 text-sm text-muted-foreground'>{t.diagnosis ?? 'No diagnosis'}</p>
+                  <div className='mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
+                    {t.department && <span>{t.department}</span>}
+                    {t.category && <span>· {t.category}</span>}
+                    {t.mttr_minutes !== null && <span>· {t.mttr_minutes}m MTTR</span>}
+                  </div>
+                  <p className='mt-1 text-xs text-muted-foreground'>{new Date(t.entered_at).toLocaleString()}</p>
+                </div>
+              ))}
+              {filteredTickets.length === 0 && !loading && (
+                <p className='py-8 text-center text-sm text-muted-foreground'>No tickets match this filter.</p>
+              )}
+            </div>
+
+            {/* Desktop/tablet: full table */}
+            <div className='hidden overflow-x-auto sm:block'>
               <table className='w-full text-sm'>
                 <thead>
                   <tr className='border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground'>

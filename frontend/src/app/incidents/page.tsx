@@ -83,17 +83,17 @@ export default function IncidentsPage() {
 
   return (
     <motion.div className='space-y-8' variants={containerVariants} initial='hidden' animate='visible'>
-      <motion.div variants={itemVariants} className='flex items-center justify-between'>
+      <motion.div variants={itemVariants} className='flex flex-wrap items-center justify-between gap-3'>
         <div>
           <h1 className='text-display-3 font-bold tracking-tight text-brand-navy'>Incidents</h1>
           <p className='mt-2 text-lg text-muted-foreground'>
             Ticket clusters grouped by cluster_key — the flood-of-tickets scenario, detected from real run_log data.
           </p>
         </div>
-        <div className='flex gap-2'>
+        <div className='flex flex-wrap gap-2'>
           <Button variant='outline' size='sm' onClick={load} disabled={loading}>
-            <Icons.refresh className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-            Refresh
+            <Icons.refresh className={cn('sm:mr-2 h-4 w-4', loading && 'animate-spin')} />
+            <span className='hidden sm:inline'>Refresh</span>
           </Button>
           <Button variant='gradient' size='sm' onClick={runDetect} disabled={detecting}>
             {detecting ? (
