@@ -32,6 +32,33 @@ class DecideRequest(BaseModel):
     notes: str | None = None
 
 
+async def _enrich_with_run_log(tasks: list[dict]) -> list[dict]:
+    """Batch-join workbench_tasks -> run_log by ticket_id so the queue can
+    show real VIP/SLA/department context, without an N+1 query per row."""
+    ticket_ids = sorted({str((t.get("context") or {}).get("ticket_id")) for t in tasks if (t.get("context") or {}).get("ticket_id")})
+    if not ticket_ids:
+        for t in tasks:
+            t["enrichment"] = None
+        return tasks
+
+    try:
+        runs = await sb_get(
+            "run_log",
+            {
+                "select": "ticket_id,is_vip,department,sla_state_before,hours_to_breach",
+                "ticket_id": f"in.({','.join(ticket_ids)})",
+            },
+        )
+    except SupabaseError:
+        runs = []
+
+    by_ticket = {r["ticket_id"]: r for r in runs}
+    for t in tasks:
+        ticket_id = str((t.get("context") or {}).get("ticket_id") or "")
+        t["enrichment"] = by_ticket.get(ticket_id)
+    return tasks
+
+
 @router.get("")
 async def list_tasks(status: str = "open", limit: int = 50):
     try:
@@ -43,6 +70,7 @@ async def list_tasks(status: str = "open", limit: int = 50):
                 "limit": str(limit),
             },
         )
+        rows = await _enrich_with_run_log(rows)
     except SupabaseError as e:
         raise HTTPException(status_code=502, detail=f"Supabase error: {e.detail}")
     return {"tasks": rows, "count": len(rows)}
@@ -52,6 +80,9 @@ async def list_tasks(status: str = "open", limit: int = 50):
 async def get_task(task_id: str):
     try:
         task = await sb_get_one("workbench_tasks", {"task_id": f"eq.{task_id}"})
+        if task is not None:
+            [enriched] = await _enrich_with_run_log([task])
+            task = enriched
     except SupabaseError as e:
         raise HTTPException(status_code=502, detail=f"Supabase error: {e.detail}")
     if task is None:

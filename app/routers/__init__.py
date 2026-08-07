@@ -21,6 +21,7 @@ from .policies import router as policies_router
 from .run_log import router as run_log_router
 from .triage_queue import router as triage_queue_router
 from .workbench import router as workbench_router
+from .zendesk import router as zendesk_router
 
 __all__ = [
     "health_router",
@@ -39,4 +40,5 @@ __all__ = [
     "run_log_router",
     "triage_queue_router",
     "incidents_router",
+    "zendesk_router",
 ]

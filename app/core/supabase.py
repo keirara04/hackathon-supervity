@@ -66,6 +66,22 @@ async def sb_patch(table: str, params: dict, body: dict) -> list[dict]:
     return resp.json()
 
 
+async def sb_upsert(table: str, body: dict | list[dict], on_conflict: str) -> list[dict]:
+    """Insert or update-on-conflict. Only the columns present in `body` are
+    written on the UPDATE branch — existing columns not included (e.g. a
+    downstream operator's derived fields) are left untouched."""
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(
+            f"{SUPABASE_URL}/rest/v1/{table}",
+            headers=_headers(prefer="resolution=merge-duplicates,return=representation"),
+            params={"on_conflict": on_conflict},
+            json=body,
+        )
+    if resp.status_code >= 300:
+        raise SupabaseError(resp.status_code, resp.text)
+    return resp.json()
+
+
 async def sb_post(table: str, body: dict | list[dict]) -> list[dict]:
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(
@@ -76,6 +92,26 @@ async def sb_post(table: str, body: dict | list[dict]) -> list[dict]:
     if resp.status_code >= 300:
         raise SupabaseError(resp.status_code, resp.text)
     return resp.json()
+
+
+async def sb_count(table: str) -> int | None:
+    """Row count for a table via PostgREST's Content-Range header — no rows
+    transferred (limit=0), just the count. Returns None if the count can't
+    be determined (table missing, RLS blocking, etc) rather than raising."""
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(
+                f"{SUPABASE_URL}/rest/v1/{table}",
+                headers=_headers(prefer="count=exact"),
+                params={"limit": "0"},
+            )
+        if resp.status_code >= 300:
+            return None
+        content_range = resp.headers.get("content-range", "")
+        total = content_range.split("/")[-1]
+        return int(total) if total.isdigit() else None
+    except Exception:  # noqa: BLE001
+        return None
 
 
 async def sb_health() -> tuple[bool, str]:

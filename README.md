@@ -1,367 +1,181 @@
-# 🚀 AutoPilot Template
+# AIDEN — Service Desk Command Center
 
-Your AI Command Center starter kit for the AutoPilot Hackathon.
+**Supervity Autopilot Asia Hackathon 2026 · Round 2 · Track 3 (Customer Support)**
+Team: Muhammad Hakeemi (Command Center) + Amsyar Hakimi (Orchestrator + Operators on Auto)
 
-Build an intelligent, multi-agent command center that automates business processes with AI — while keeping humans in the loop for oversight and exception handling.
+AIDEN is an AI Employee for an IT service desk: tickets arrive from Zendesk and Outlook, get triaged, diagnosed against a knowledge base, auto-resolved where policy allows, escalated to a human where it doesn't, and rolled up into live metrics — with every policy evaluation and human decision logged for audit.
+
+Round 1 built the resolver (2 Operators, 3 integrations). Round 2 grows it into a governed operation: 6 Operators, 11 live policy levers, a self-learning insights loop, and a full Command Center on top.
+
+See the architecture diagram: [`docs/AIDEN_Architecture_Diagram.svg`](docs/AIDEN_Architecture_Diagram.svg)
+
+---
+
+## The two layers
+
+| Layer | What it is | Built on |
+|---|---|---|
+| **1 — Agent Ecosystem** | Orchestrator + 6 Operators (Sweep, Triage, Diagnose & Correlate, Score & Decide, Remediate & Verify, Escalation & Change-Approval Router) that actually process tickets | [auto.supervity.ai](https://auto.supervity.ai) — owned by Amsyar |
+| **2 — Command Center** | Dashboard, AI Policies, AI Insights, Workbench, Data Manager, AI Manager — everything in this repo | FastAPI + Next.js, coded here — owned by Muhammad Hakeemi |
+
+Business data (`run_log`, `policy_config`, `policy_eval_log`, `workbench_tasks`, `triage_queue`, `kb_articles`, `incidents`, `users_directory`, `assets_access`) lives in **Supabase**, read/written by both layers over PostgREST. This repo's own Postgres/Docker database is only for the template's own auth/audit scaffolding — not where business data lives.
+
+---
+
+## Live integrations (floor: 3+, across 2+ categories)
+
+| System | Category | Role |
+|---|---|---|
+| **Zendesk** | Channel | Ticket intake + requester replies (OAuth client-credentials → Bearer) |
+| **Outlook** | Channel | Email intake + escalation notices (native Auto integration) |
+| **Supabase** | System of record | Every table above, accessed via raw PostgREST calls from both the Operators and this backend |
+
+All three are pinged live from the **Data Manager** page (`/data-manager`) — status is checked, not hardcoded.
+
+---
+
+## What each Command Center surface actually does
+
+| Surface | Route | Status |
+|---|---|---|
+| **Dashboard** | `/` | Live KPIs computed from `run_log` on every load — auto-resolution rate, SLA compliance, MTTR, ticket volume trend, department split. Polls every 15s with a "Live" indicator; nothing seeded. |
+| **AI Policies** | `/ai/policies` | All 11 real levers from `policy_config` (`vip_always_escalate`, `min_auto_score`, `min_kb_confidence`, etc.), schema-driven so new levers need no frontend changes. Edits are batched, saved, and read fresh by the Score & Decide operator on the next run. Every evaluation logged to `policy_eval_log` and shown in an audit table below. |
+| **AI Insights** | `/ai/insights` | Computed from `policy_eval_log` + `run_log` + `workbench_tasks` — pattern detection (VIP-driven escalation share, KB gaps, department volume), a volume forecast, and a **self-learning** insight that reads recurring Workbench overrides and offers a one-click "apply this policy fix" action. |
+| **Workbench** | `/workbench` | The human queue — every exception arrives with full context and the AI's recommendation; a person approves, modifies, or rejects. Decision is recorded and feeds the self-learning loop above. |
+| **Data Manager** | `/data-manager` | Live health registry — pings Supabase, Zendesk, and Outlook and reports up/down + what each is used for. |
+| **AI Manager** | chat, top bar | Grounded conversational surface — only answers from live tool calls (dashboard KPIs, workbench queue, policy config, eval log), can trigger an Auto orchestrator run. Never invents a number it can't cite. |
+| **Incidents** (bonus) | `/incidents` | Major-incident detection built directly in the Command Center: groups `run_log` by `cluster_key`, flags clusters at/above `policy_config.major_incident_threshold`, and declares/links incidents — covers the "30 tickets, one failing system" scenario without waiting on a dedicated Auto operator. |
+| **Triage Queue / Run Log / Knowledge Base** (bonus) | `/triage-queue`, `/run-log`, `/knowledge-base` | Read-only live views into the operators' own working tables, useful for judges to see the pipeline mid-flight. |
+
+---
+
+## Outcome metrics & integrations note (submission requirement)
+
+**Metrics tracked:** MTTR, SLA compliance %, auto-resolution rate, ticket volume, department split — all computed live from `run_log` on the Dashboard (`GET /api/dashboard/kpis`), not static numbers. CSAT is modeled in the policy schema (`csat_escalate_below`) but not yet populated — the CSAT Follow-up operator is still upstream.
+
+**Integrations used:** Zendesk (channel), Outlook (channel), Supabase (system of record) — 3 live integrations across 2 categories, all visible and health-checked in Data Manager.
+
+**Human in the loop:** Workbench resolves real exceptions; decisions are auditable and feed back into policy recommendations via the AI Insights self-learning panel.
 
 ---
 
 ## Prerequisites
 
-Before you begin, make sure you have these installed on your machine:
-
 | Tool | macOS | Windows | Why you need it |
 |------|-------|---------|-----------------|
-| **Docker Desktop** | [Download for Mac](https://www.docker.com/products/docker-desktop/) | [Download for Windows](https://www.docker.com/products/docker-desktop/) | Runs all services (backend, frontend, database) in containers |
+| **Docker Desktop** | [Download for Mac](https://www.docker.com/products/docker-desktop/) | [Download for Windows](https://www.docker.com/products/docker-desktop/) | Runs backend, frontend, and the template's own database in containers |
 | **Git** | Pre-installed or `brew install git` | [Download](https://git-scm.com/download/win) or `winget install Git.Git` | Clone the repository |
 
 > **Windows users:** Make sure WSL 2 is enabled (Docker Desktop will prompt you). If you see a WSL error, run `wsl --install` in PowerShell as Administrator and restart.
 
 ---
 
-## 🚀 Getting Started — Step by Step
+## Getting started
 
-### Step 1: Clone the Repository
+### 1. Clone and configure
 
-**macOS (Terminal) / Windows (PowerShell / Git Bash):**
 ```bash
-git clone <your-repo-url>
-cd AutoPilot-Template
+git clone <this-repo-url>
+cd hackathon-supervity
+cp .env.example .env   # macOS/Linux — Copy-Item .env.example .env on Windows PowerShell
 ```
 
-### Step 2: Create Your Environment File
+Fill in `.env` with:
+- `SUPABASE_URL` / `SUPABASE_KEY` — the business-data project (`ovtxhlpeixfjyyxqufhw`)
+- `OPENROUTER_API_KEY` — powers the AI Manager chat + AI Insights
+- `AUTO_WORKFLOW_API_KEY` / `AUTO_WORKFLOW_ID` / `AUTO_ORG_ID` — only needed once the Orchestrator trigger button is used from AI Manager; everything else works without it
+- Zendesk credentials — only needed for the Data Manager Zendesk health check to go green
 
-**macOS / Linux:**
+`AUTH_BYPASS=true` (default) skips real auth entirely — the app runs as an automatic "Dev User".
+
+### 2. Start Docker Desktop, then start the services
+
 ```bash
-cp .env.example .env
+make up                   # .\scripts\start.ps1 on Windows — first run 2-5 min, later runs ~15s
+docker compose ps         # verify postgres, backend, frontend all healthy
 ```
 
-**Windows (PowerShell):**
-```powershell
-Copy-Item .env.example .env
-```
+### 3. Open it
 
-**Windows (Command Prompt):**
-```cmd
-copy .env.example .env
-```
-
-> The default `.env` works out of the box — `AUTH_BYPASS=true` means no external auth setup needed. The app starts with a "Dev User" session automatically.
-
-### Step 3: Start Docker Desktop
-
-1. Open **Docker Desktop** from your Applications (Mac) or Start Menu (Windows)
-2. Wait until the Docker icon in your system tray/menu bar shows **"Docker Desktop is running"**
-3. If this is your first time, Docker may take 1-2 minutes to initialize
-
-### Step 4: Start All Services
-
-**macOS / Linux (Terminal):**
-```bash
-make up
-```
-
-**Windows (PowerShell):**
-```powershell
-.\scripts\start.ps1
-```
-
-> This script clears WSL2 port conflicts, starts Docker, and verifies all services are reachable.
-> You can still use `docker compose up --build -d` directly, but the script handles a common Windows networking issue automatically.
-
-> First run takes 2-5 minutes to download images and build containers. Subsequent runs use cache and start in ~15 seconds.
-
-### Step 5: Verify Everything is Running
-
-**macOS / Linux:**
-```bash
-docker compose ps
-```
-
-**Windows (PowerShell):**
-```powershell
-docker compose ps
-```
-
-You should see 3 services with status `running` or `Up`:
-```
-NAME                              STATUS
-autopilot-template-postgres-1     running (healthy)
-autopilot-template-backend-1      running
-autopilot-template-frontend-1     running
-```
-
-### Step 6: Open Your Command Center
-
-| Service | URL | What it is |
-|---------|-----|------------|
-| 🖥️ **Dashboard** | [http://localhost:3001](http://localhost:3001) | Your Command Center UI |
-| ⚙️ **API Docs** | [http://localhost:8001/api/docs](http://localhost:8001/api/docs) | Backend Swagger documentation |
-| 🗄️ **Database** | `localhost:5432` | PostgreSQL (user: `user`, password: `password`) |
-
-**You should see the Command Center dashboard with:**
-- Stat cards showing AI activity metrics
-- An activity chart with weekly data
-- An AI Confidence indicator
-- The AI Manager button in the top header bar
+| Service | URL |
+|---|---|
+| 🖥️ Command Center | [http://localhost:3001](http://localhost:3001) |
+| ⚙️ API docs (Swagger) | [http://localhost:8001/api/docs](http://localhost:8001/api/docs) |
+| 🗄️ Template's own Postgres | `localhost:5432` (user `user`, pass `password`) — auth/audit only, not business data |
 
 ---
 
-## 🛑 Stopping & Restarting
-
-### Stop All Services
-
-**macOS / Linux:**
-```bash
-make down
-```
-
-**Windows (PowerShell):**
-```powershell
-docker compose down
-```
-
-### Restart (without rebuilding)
-
-**macOS / Linux:**
-```bash
-docker compose up -d
-```
-
-**Windows (PowerShell):**
-```powershell
-docker compose up -d
-```
-
-### Full Rebuild (after code changes)
-
-**macOS / Linux:**
-```bash
-make up
-```
-
-**Windows (PowerShell):**
-```powershell
-docker compose up --build -d
-```
-
-### Clean Reset (fresh start — removes all data)
-
-**macOS / Linux:**
-```bash
-make down
-docker volume rm autopilot-template_postgres_data autopilot-template_document_storage
-make up
-```
-
-**Windows (PowerShell):**
-```powershell
-docker compose down
-docker volume rm autopilot-template_postgres_data autopilot-template_document_storage
-docker compose up --build -d
-```
-
----
-
-## 📋 Common Commands Reference
-
-### macOS / Linux (using `make`)
+## Common commands
 
 | Command | What it does |
-|---------|-------------|
+|---|---|
 | `make up` | Build and start all services |
 | `make down` | Stop all services |
-| `make logs-be` | Stream backend logs (live) |
-| `make logs-fe` | Stream frontend logs (live) |
-| `make reset-db` | Reset database and re-seed sample data |
-| `make migrate-create MSG='add users table'` | Create a new database migration |
-| `make migrate-up` | Apply all pending migrations |
-| `make migrate-down` | Rollback the last migration |
-| `make migrate-history` | Show migration history |
-| `make lint` | Lint backend + frontend code |
+| `make logs-be` / `make logs-fe` | Stream backend / frontend logs |
+| `make lint` | Lint backend + frontend |
 | `make test-be` | Run backend unit tests |
-| `make help` | Show all available commands |
+| `docker compose up --build -d backend` | Rebuild just the backend after a Python change |
+| `docker compose up --build -d frontend` | Rebuild just the frontend after a `.tsx` change |
 
-### Windows (using `docker compose` directly)
-
-| Command | What it does |
-|---------|-------------|
-| `docker compose up --build -d` | Build and start all services |
-| `docker compose down` | Stop all services |
-| `docker compose logs -f backend` | Stream backend logs (live) |
-| `docker compose logs -f frontend` | Stream frontend logs (live) |
-| `docker compose exec backend python scripts/reset_db.py` | Reset database |
-| `docker compose exec backend alembic revision --autogenerate -m "description"` | Create migration |
-| `docker compose exec backend alembic upgrade head` | Apply all pending migrations |
-| `docker compose exec backend alembic downgrade -1` | Rollback last migration |
-| `docker compose exec backend alembic history --verbose` | Show migration history |
-| `docker compose exec backend pytest` | Run backend tests |
-
-> **Tip for Windows:** You can install `make` via [Chocolatey](https://chocolatey.org/) (`choco install make`) or [Scoop](https://scoop.sh/) (`scoop install make`) to use the shorter `make` commands.
+Windows equivalents and full troubleshooting live in [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md) and the original template notes below.
 
 ---
 
-## 🔍 Viewing Logs & Debugging
+## Project structure
 
-### Watch all logs at once
-```bash
-# macOS / Linux
-docker compose logs -f
-
-# Stop following with Ctrl+C
 ```
-
-### Watch a specific service
-```bash
-# Backend only
-docker compose logs -f backend
-
-# Frontend only
-docker compose logs -f frontend
-
-# Database only
-docker compose logs -f postgres
-```
-
-### Check if a service is healthy
-```bash
-# Quick health check
-curl http://localhost:8001/api/health
-
-# Or check container status
-docker compose ps
-```
-
-### Restart a single service (without touching others)
-```bash
-docker compose restart frontend
-docker compose restart backend
+hackathon-supervity/
+├── app/                         # Backend (FastAPI)
+│   ├── main.py                  # App entry point, router registration
+│   ├── routers/
+│   │   ├── dashboard.py         # Live KPIs from run_log
+│   │   ├── policies.py          # AI Policies — schema, singleton config, eval log
+│   │   ├── insights.py          # AI Insights — patterns, forecast, self-learning
+│   │   ├── workbench.py         # Human-in-the-loop exception queue
+│   │   ├── data_manager.py      # Live integration health checks
+│   │   ├── ai.py                # AI Manager chat + Auto orchestrator trigger
+│   │   ├── incidents.py         # Major-incident detection (cluster_key correlation)
+│   │   ├── triage_queue.py      # Read-only view of the Triage operator's queue
+│   │   ├── kb_articles.py       # Knowledge base viewer / auto-safe toggle
+│   │   ├── run_log.py           # Pipeline ledger views
+│   │   └── admin.py, audit.py, auth.py, items.py, examples.py, health.py  # template scaffolding
+│   └── core/                    # supabase.py (PostgREST client), database.py, storage.py
+├── frontend/src/app/             # Next.js pages — one per surface above
+├── docs/
+│   ├── AIDEN_Architecture_Diagram.svg   # ⭐ visual architecture overview
+│   ├── AIDEN_Operator_Progress_Spec.md  # ⭐ real schema + per-operator build status
+│   ├── AIDEN_Architecture_ASCII.md      # earlier text-form architecture notes
+│   ├── NEXT_STEPS.md                    # session-by-session build log + gate checklist
+│   ├── ROUND_2_FULL_REFERENCE.md        # full hackathon rules/rubric reference
+│   ├── command-center-guide.md          # template's own architecture guide
+│   └── hackathon-brief.md               # official Round 2 brief
+├── alembic/                      # migrations for the template's own Postgres (not business data)
+├── docker-compose.yml
+└── .env.example
 ```
 
 ---
 
-## What's Included
+## Tech stack
 
-### Backend (FastAPI + Python)
-- ✅ FastAPI with auto-generated Swagger docs
-- ✅ PostgreSQL database with Alembic migrations
-- ✅ Auth system with dev-mode bypass (`AUTH_BYPASS=true`)
-- ✅ Audit logging middleware (every request logged)
-- ✅ Items CRUD API (sample entity)
-- ✅ File storage API (local or cloud)
-- ✅ Role-based authorization engine
-
-### Frontend (Next.js + React)
-- ✅ Premium glassmorphic UI with Framer Motion animations
-- ✅ Dashboard with stat cards and activity chart
-- ✅ AI Policies page with demo data (5 sample policies)
-- ✅ AI Insights page with demo data (patterns, anomalies, actions)
-- ✅ AI Manager chat interface
-- ✅ Workbench page
-- ✅ Settings page
-- ✅ Command palette (⌘K / Ctrl+K)
-
-### Infrastructure
-- ✅ Docker Compose for one-command startup
-- ✅ Pre-built production frontend (instant page loads)
-- ✅ Cross-platform (macOS, Windows, Linux)
-
----
-
-## What YOU Build
-
-This is a **starter template**. You need to connect these frontend shells to real AI logic:
-
-| Feature | Frontend Status | Your Task |
-|---------|----------------|-----------| 
-| **AI Manager** | ✅ Chat UI ready | Connect to your AI agent orchestration backend |
-| **AI Policies** | ✅ Demo data loaded | Build the policy engine that evaluates rules at runtime |
-| **AI Insights** | ✅ Demo data loaded | Build the analysis engine that generates insights from your data |
-| **Workbench** | ✅ UI shell ready | Build exception routing — when AI fails, send work items here |
-
-See **[`docs/command-center-guide.md`](docs/command-center-guide.md)** for the full architecture guide.
-
----
-
-## Project Structure
-
-```
-AutoPilot-Template/
-├── app/                    # Backend (FastAPI)
-│   ├── main.py             # App entry point
-│   ├── security.py         # Auth + AUTH_BYPASS logic
-│   ├── authz.py            # Authorization engine
-│   ├── models/             # SQLAlchemy models
-│   ├── schemas/            # Pydantic schemas
-│   ├── routers/            # API endpoints
-│   ├── services/           # Business logic
-│   └── core/               # Database, storage
-├── frontend/               # Frontend (Next.js)
-│   ├── src/app/            # Pages (dashboard, AI, admin, etc.)
-│   ├── src/components/     # Reusable UI components
-│   └── src/lib/            # API client, utilities
-├── alembic/                # Database migrations
-├── scripts/                # Seed data, utilities
-├── docs/                   # Documentation
-│   ├── command-center-guide.md   # ⭐ What to build
-│   ├── hackathon-brief.md        # ⭐ Problem statements
-│   ├── design-system-template.md # UI patterns
-│   └── Audit System Guide.md     # Audit logging
-├── docker-compose.yml      # Service orchestration
-├── Dockerfile              # Backend container
-├── Makefile                # Dev commands (macOS/Linux)
-└── .env.example            # Environment config template
-```
-
----
-
-## Key Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AUTH_BYPASS` | `true` | Skip all auth (dev mode) |
-| `AUTH_DEBUG` | `true` | Verbose auth logging |
-| `APP_ENV` | `development` | Backend mode |
-| `DATABASE_URL` | auto-generated | PostgreSQL connection |
-| `FRONTEND_URL` | `http://localhost:3001` | CORS origin |
-
----
-
-## 🛠️ Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| **Docker not found** | Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) and make sure it's running |
-| **Port 3001 already in use** | Stop whatever is on that port: `lsof -ti:3001 \| xargs kill` (Mac) or change the port in `docker-compose.yml` |
-| **Port 5432 already in use** | You have a local PostgreSQL running. Stop it or change the port in `docker-compose.yml` |
-| **`make` not found (Windows)** | Use `docker compose` commands directly (see table above) or install make via `choco install make` |
-| **WSL error (Windows)** | Run `wsl --install` in PowerShell as Admin, then restart your PC |
-| **ERR_CONNECTION_RESET on localhost (Windows)** | WSL2's relay can intercept port 3001 via IPv6. Use `.\scripts\start.ps1` which handles this automatically, or manually run `wsl --shutdown` before `docker compose up --build -d`. |
-| **Containers crash-looping** | Check logs: `docker compose logs backend` — usually a missing env var or DB issue |
-| **Frontend shows blank page** | Check if backend is healthy: `curl http://localhost:8001/api/health` |
-| **Database connection refused** | Wait 10-15 seconds after startup — Postgres needs time to initialize on first run |
+| Layer | Technology |
+|---|---|
+| Agent orchestration | [auto.supervity.ai](https://auto.supervity.ai) |
+| Backend | Python 3.11 + FastAPI |
+| Business data | Supabase (PostgreSQL via PostgREST) |
+| LLM (Policies/Insights/AI Manager) | OpenRouter |
+| Frontend | Next.js 15 + React 19 + Tailwind + Framer Motion |
+| Containers | Docker + Docker Compose |
 
 ---
 
 ## Documentation
 
 | Document | Purpose |
-|----------|---------| 
-| **[Command Center Guide](docs/command-center-guide.md)** | What is a Command Center, AI Policies, Insights, Manager, Workbench |
-| **[Hackathon Brief](docs/hackathon-brief.md)** | Problem statements, judging criteria |
-| **[Design System](docs/design-system-template.md)** | UI component patterns, colors, spacing |
-| **[Audit System](docs/Audit%20System%20Guide.md)** | Audit logging architecture |
-
----
-
-## Tech Stack
-
-| Layer | Technology | Purpose |
-|-------|------------|---------|
-| **Backend** | Python 3.11 + FastAPI | API server |
-| **Frontend** | Next.js 15 + React 19 | Web dashboard |
-| **Database** | PostgreSQL 15 | Persistent storage |
-| **ORM** | SQLAlchemy 2 + Alembic | Data modeling + migrations |
-| **Auth** | NextAuth.js + JWT | Authentication (bypass-able) |
-| **UI** | Tailwind CSS + Framer Motion | Styling + animations |
-| **Containers** | Docker + Docker Compose | Development environment |
+|---|---|
+| [`docs/AIDEN_Architecture_Diagram.svg`](docs/AIDEN_Architecture_Diagram.svg) | Visual overview of the full agent + Command Center ecosystem |
+| [`docs/AIDEN_Operator_Progress_Spec.md`](docs/AIDEN_Operator_Progress_Spec.md) | Real Supabase schema, per-operator build status, integration details |
+| [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md) | Build log, known issues, gate-requirement checklist |
+| [`docs/ROUND_2_FULL_REFERENCE.md`](docs/ROUND_2_FULL_REFERENCE.md) | Full rubric, timeline, and qualification gate |
+| [`docs/command-center-guide.md`](docs/command-center-guide.md) | Template's own architecture reference |
+| [`docs/hackathon-brief.md`](docs/hackathon-brief.md) | Official Round 2 brief |

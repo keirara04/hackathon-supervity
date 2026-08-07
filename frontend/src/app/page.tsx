@@ -55,11 +55,13 @@ interface DashboardKPIs {
   computed_at: string
 }
 
-// Animated number component
+// Animated number component — re-animates from its previous value every
+// time `value` changes (not just on mount), so live polling updates read
+// as motion instead of a snap.
 function AnimatedNumber({
   value,
   suffix = '',
-  duration = 1000,
+  duration = 800,
 }: {
   value: number
   suffix?: string
@@ -68,12 +70,13 @@ function AnimatedNumber({
   const [displayValue, setDisplayValue] = useState(0)
   const ref = useRef<HTMLSpanElement>(null)
   const isInView = useInView(ref, { once: true, amount: 0.5 })
-  const hasAnimated = useRef(false)
+  const prevValue = useRef(0)
 
   useEffect(() => {
-    if (!isInView || hasAnimated.current) return
-    hasAnimated.current = true
+    if (!isInView) return
 
+    const from = prevValue.current
+    const to = value
     const startTime = performance.now()
 
     const animate = (currentTime: number) => {
@@ -81,12 +84,13 @@ function AnimatedNumber({
       const progress = Math.min(elapsed / duration, 1)
       const eased = 1 - Math.pow(2, -10 * progress)
 
-      setDisplayValue(Math.round(eased * value))
+      setDisplayValue(Math.round(from + (to - from) * eased))
 
       if (progress < 1) {
         requestAnimationFrame(animate)
       } else {
-        setDisplayValue(value)
+        setDisplayValue(to)
+        prevValue.current = to
       }
     }
 
@@ -119,6 +123,19 @@ interface StatCardProps {
 }
 
 function StatCard({ title, value, suffix = '', icon: Icon, colorClass, delay = 0 }: StatCardProps) {
+  const prevValue = useRef<number | null>(null)
+  const [justChanged, setJustChanged] = useState(false)
+
+  useEffect(() => {
+    if (value !== null && prevValue.current !== null && prevValue.current !== value) {
+      setJustChanged(true)
+      const t = setTimeout(() => setJustChanged(false), 700)
+      prevValue.current = value
+      return () => clearTimeout(t)
+    }
+    prevValue.current = value
+  }, [value])
+
   return (
     <motion.div
       variants={itemVariants}
@@ -127,7 +144,12 @@ function StatCard({ title, value, suffix = '', icon: Icon, colorClass, delay = 0
       transition={{ delay }}
       whileHover={{ y: -4 }}
     >
-      <Card className='group relative h-full cursor-default overflow-hidden'>
+      <Card
+        className={cn(
+          'group relative h-full cursor-default overflow-hidden transition-shadow duration-700',
+          justChanged && 'ring-2 ring-brand-cornflower/60 shadow-[0_0_20px_rgba(138,162,223,0.4)]'
+        )}
+      >
         <CardWatermark opacity={3} scale={0.9} />
         <CardContent className='relative z-10 p-5'>
           <div className='flex items-start justify-between'>
@@ -280,9 +302,10 @@ export default function HomePage() {
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Date.now())
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     setError(null)
     try {
       const res = await apiClient.get<DashboardKPIs>('/api/dashboard/kpis')
@@ -290,22 +313,45 @@ export default function HomePage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load dashboard KPIs')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
+  // Auto-refresh every 15s so the dashboard reflects the live pipeline
+  // without a manual click — polls trigger AnimatedNumber's re-animation
+  // and StatCard's change-flash automatically since kpis just updates.
   useEffect(() => {
     load()
+    const interval = setInterval(() => load(true), 15000)
+    return () => clearInterval(interval)
   }, [load])
+
+  // Ticks the "updated Xs ago" label in the live badge.
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  const secondsAgo = kpis ? Math.max(0, Math.round((now - new Date(kpis.computed_at).getTime()) / 1000)) : null
 
   return (
     <motion.div className='space-y-6' variants={containerVariants} initial='hidden' animate='visible'>
       <div className='flex items-center justify-between'>
         <HeroSection userName='Developer' />
-        <Button variant='outline' size='sm' onClick={load} disabled={loading} className='shrink-0'>
-          <Icons.refresh className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-          Refresh
-        </Button>
+        <div className='flex shrink-0 items-center gap-3'>
+          <div className='flex items-center gap-2 rounded-full border border-border bg-muted/10 px-3 py-1.5 text-xs text-muted-foreground'>
+            <span className='relative flex h-2 w-2'>
+              <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75' />
+              <span className='relative inline-flex h-2 w-2 rounded-full bg-emerald-500' />
+            </span>
+            <span className='font-medium text-foreground'>Live</span>
+            {secondsAgo !== null && <span>· updated {secondsAgo}s ago</span>}
+          </div>
+          <Button variant='outline' size='sm' onClick={() => load()} disabled={loading}>
+            <Icons.refresh className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {error && (

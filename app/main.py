@@ -52,6 +52,7 @@ from .routers import (
     run_log_router,
     triage_queue_router,
     workbench_router,
+    zendesk_router,
 )
 from .security import get_current_user, verify_access
 
@@ -193,6 +194,9 @@ api_router.include_router(triage_queue_router)
 
 # Incidents — major-incident detection from run_log cluster_key groupings
 api_router.include_router(incidents_router)
+
+# Zendesk — live ticket viewer + manual import into triage_queue
+api_router.include_router(zendesk_router)
 
 
 # =============================================================================

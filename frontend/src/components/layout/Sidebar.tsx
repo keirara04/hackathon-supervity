@@ -69,6 +69,7 @@ const navItems: NavSection[] = [
   {
     title: 'Pipeline',
     items: [
+      { href: '/zendesk-tickets', label: 'Zendesk Tickets', icon: Icons.inbox },
       { href: '/triage-queue', label: 'Triage Queue', icon: Icons.layers },
       { href: '/run-log', label: 'Run Log', icon: Icons.clock },
       { href: '/knowledge-base', label: 'Knowledge Base', icon: Icons.bookmark },
