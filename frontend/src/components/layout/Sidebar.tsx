@@ -63,6 +63,7 @@ const navItems: NavSection[] = [
     items: [
       { href: '/', label: 'Dashboard', icon: Icons.dashboard },
       { href: '/workbench', label: 'Workbench', icon: Icons.workbench },
+      { href: '/data-manager', label: 'Data Manager', icon: Icons.network },
     ],
   },
   {
