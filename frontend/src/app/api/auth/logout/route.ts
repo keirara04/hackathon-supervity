@@ -5,6 +5,6 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   // Just redirect to home — no external session to invalidate
-  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001'
+  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:8080'
   return NextResponse.redirect(baseUrl)
 }

@@ -76,6 +76,7 @@ export const navItems: NavSection[] = [
       { href: '/run-log', label: 'Run Log', icon: Icons.clock },
       { href: '/knowledge-base', label: 'Knowledge Base', icon: Icons.bookmark },
       { href: '/incidents', label: 'Incidents', icon: Icons.alertTriangle },
+      { href: '/team-roster', label: 'Team Roster', icon: Icons.users },
     ],
   },
   {

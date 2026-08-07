@@ -32,6 +32,10 @@ class DecideRequest(BaseModel):
     notes: str | None = None
 
 
+class AssignRequest(BaseModel):
+    assigned_to: str
+
+
 async def _enrich_with_run_log(tasks: list[dict]) -> list[dict]:
     """Batch-join workbench_tasks -> run_log by ticket_id so the queue can
     show real VIP/SLA/department context, without an N+1 query per row."""
@@ -112,6 +116,25 @@ async def decide_task(task_id: str, body: DecideRequest):
                 "resolved_by": body.resolved_by or "dev-user",
                 "decided_at": datetime.now(timezone.utc).isoformat(),
             },
+        )
+    except SupabaseError as e:
+        raise HTTPException(status_code=502, detail=f"Supabase error: {e.detail}")
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Workbench task not found")
+    return updated[0]
+
+
+@router.patch("/{task_id}/assign")
+async def assign_task(task_id: str, body: AssignRequest):
+    """Assign ownership to an on-call agent — separate from /decide since
+    assigning a task isn't the same action as approving/modifying/rejecting
+    it; only touches `assigned_to`, no status change."""
+    try:
+        updated = await sb_patch(
+            "workbench_tasks",
+            {"task_id": f"eq.{task_id}"},
+            {"assigned_to": body.assigned_to},
         )
     except SupabaseError as e:
         raise HTTPException(status_code=502, detail=f"Supabase error: {e.detail}")

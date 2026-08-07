@@ -50,6 +50,7 @@ from .routers import (
     kb_articles_router,
     policies_router,
     run_log_router,
+    team_roster_router,
     triage_queue_router,
     workbench_router,
     zendesk_router,
@@ -90,13 +91,13 @@ app = FastAPI(
 # =============================================================================
 
 # CORS Middleware
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3001")
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:8080")
 cors_origins = [
     frontend_url,
     "http://localhost:3000",
-    "http://localhost:3001",
+    "http://localhost:8080",
     "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",
+    "http://127.0.0.1:8080",
 ]
 
 app.add_middleware(
@@ -197,6 +198,9 @@ api_router.include_router(incidents_router)
 
 # Zendesk — live ticket viewer + manual import into triage_queue
 api_router.include_router(zendesk_router)
+
+# Team Roster — on-call agents/capacity, backs Workbench assignment
+api_router.include_router(team_roster_router)
 
 
 # =============================================================================

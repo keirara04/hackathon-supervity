@@ -4,7 +4,7 @@
 #
 # Usage:  .\scripts\start.ps1
 # Why:    On Windows with WSL2, wslrelay.exe can bind to [::1] on ports
-#         used by Docker (3001, 8001, etc.), causing ERR_CONNECTION_RESET
+#         used by Docker (8080, 8001, etc.), causing ERR_CONNECTION_RESET
 #         when browsers resolve "localhost" to IPv6. This script clears
 #         that conflict before starting containers.
 
@@ -27,7 +27,7 @@ if (-not $SkipWSL) {
     Write-Host "`n[1/3] Clearing WSL2 port reservations..." -ForegroundColor Yellow
 
     # Check if wslrelay is actually holding any of our ports
-    $conflictPorts = @(3001, 8001, 5432)
+    $conflictPorts = @(8080, 8001)
     $hasConflict = $false
     foreach ($port in $conflictPorts) {
         $relay = netstat -ano 2>$null | Select-String "::1\]:$port\s+.*LISTENING"
@@ -80,7 +80,7 @@ do {
     $attempt++
     Start-Sleep -Seconds 2
     try {
-        $response = Invoke-WebRequest -Uri "http://127.0.0.1:3001" -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
+        $response = Invoke-WebRequest -Uri "http://127.0.0.1:8080" -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
         if ($response.StatusCode -eq 200) {
             $ready = $true
             break
@@ -103,9 +103,9 @@ if ($ready) {
     Write-Host "  All services are running!" -ForegroundColor Green
     Write-Host "========================================" -ForegroundColor Green
     Write-Host ""
-    Write-Host "  Dashboard:  http://localhost:3001"          -ForegroundColor White
+    Write-Host "  Dashboard:  http://localhost:8080"          -ForegroundColor White
     Write-Host "  API Docs:   http://localhost:8001/api/docs" -ForegroundColor White
-    Write-Host "  Database:   localhost:5432"                  -ForegroundColor White
+    Write-Host "  Database:   internal only (no host port exposed)" -ForegroundColor White
     Write-Host ""
 } else {
     Write-Host "========================================" -ForegroundColor Yellow
@@ -117,6 +117,6 @@ if ($ready) {
     Write-Host "    docker compose logs backend"               -ForegroundColor Gray
     Write-Host ""
     Write-Host "  If the issue persists, try:"                 -ForegroundColor White
-    Write-Host "    http://127.0.0.1:3001  (bypass DNS)"       -ForegroundColor Gray
+    Write-Host "    http://127.0.0.1:8080  (bypass DNS)"       -ForegroundColor Gray
     Write-Host ""
 }

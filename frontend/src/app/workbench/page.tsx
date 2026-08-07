@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, memo } from 'react'
+import { useState, useMemo, useCallback, useEffect, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Card,
@@ -146,6 +146,17 @@ export default function WorkbenchPage() {
   const [notes, setNotes] = useState('')
   const [modifying, setModifying] = useState(false)
   const [confirmation, setConfirmation] = useState<string | null>(null)
+  const [agents, setAgents] = useState<{ agent_name: string; agent_email: string | null; on_call: boolean }[]>([])
+  const [assigning, setAssigning] = useState(false)
+
+  useEffect(() => {
+    apiClient
+      .get<{ agents: { agent_name: string; agent_email: string | null; on_call: boolean }[] }>('/api/team-roster')
+      .then((res) => setAgents(res.agents))
+      .catch(() => {
+        // Non-critical — the Assign control just shows empty if this fails.
+      })
+  }, [])
 
   const error = loadError ?? decideError
   const activeList = tab === 'queue' ? tasks : history
@@ -204,6 +215,22 @@ export default function WorkbenchPage() {
       }
     },
     [selected, modifying, notes, startModify, reload]
+  )
+
+  const assignTo = useCallback(
+    async (assignee: string) => {
+      if (!selected || !assignee) return
+      setAssigning(true)
+      try {
+        await apiClient.patch(`/api/workbench/${selected.task_id}/assign`, { assigned_to: assignee })
+        await reload()
+      } catch (e) {
+        setDecideError(e instanceof Error ? e.message : 'Failed to assign task')
+      } finally {
+        setAssigning(false)
+      }
+    },
+    [selected, reload]
   )
 
   // Keyboard nav on the queue list — Up/Down moves selection, matching the
@@ -427,6 +454,29 @@ export default function WorkbenchPage() {
                       <p className='mt-1 rounded-lg bg-muted/20 p-3 text-sm'>
                         {selected.recommendation || 'No recommendation provided'}
                       </p>
+                    </div>
+
+                    <div>
+                      <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                        Assigned to
+                      </p>
+                      <div className='mt-1 flex items-center gap-2'>
+                        <select
+                          value={selected.assigned_to ?? ''}
+                          onChange={(e) => assignTo(e.target.value)}
+                          disabled={assigning}
+                          className='w-full rounded-lg border border-border bg-muted/10 px-3 py-1.5 text-sm outline-none focus:border-primary/50 sm:w-64'
+                        >
+                          <option value=''>Unassigned</option>
+                          {agents.map((agent) => (
+                            <option key={agent.agent_name} value={agent.agent_email ?? agent.agent_name}>
+                              {agent.agent_name}
+                              {agent.on_call ? ' (on-call)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                        {assigning && <Icons.loader className='h-4 w-4 animate-spin text-muted-foreground' />}
+                      </div>
                     </div>
 
                     {modifying ? (

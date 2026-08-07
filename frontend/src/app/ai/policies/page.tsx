@@ -45,6 +45,19 @@ interface EvalLogRow {
   reason: string
 }
 
+interface AuditChange {
+  field: string
+  from: unknown
+  to: unknown
+}
+
+interface AuditEntry {
+  id: number
+  changed_at: string
+  changed_by: string | null
+  changes: AuditChange[]
+}
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: { opacity: 1, transition: { staggerChildren: 0.06 } },
@@ -138,6 +151,7 @@ export default function PoliciesPage() {
   const [policy, setPolicy] = useState<PolicyConfig | null>(null)
   const [draft, setDraft] = useState<Record<string, PolicyValue>>({})
   const [log, setLog] = useState<EvalLogRow[]>([])
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -147,14 +161,16 @@ export default function PoliciesPage() {
     setLoading(true)
     setError(null)
     try {
-      const [schemaRes, policyRes, logRes] = await Promise.all([
+      const [schemaRes, policyRes, logRes, auditRes] = await Promise.all([
         apiClient.get<{ levers: Lever[] }>('/api/policies/schema'),
         apiClient.get<PolicyConfig>('/api/policies'),
         apiClient.get<{ log: EvalLogRow[] }>('/api/policies/log?limit=50'),
+        apiClient.get<{ entries: AuditEntry[] }>('/api/policies/audit?limit=50'),
       ])
       setLevers(schemaRes.levers)
       setPolicy(policyRes)
       setLog(logRes.log)
+      setAuditEntries(auditRes.entries.filter((e) => e.changes.length > 0))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load policies')
     } finally {
@@ -366,6 +382,38 @@ export default function PoliciesPage() {
                 <p className='py-8 text-center text-sm text-muted-foreground'>No evaluations logged yet.</p>
               )}
             </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      <motion.div variants={itemVariants}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Change History</CardTitle>
+            <CardDescription>Every edit made to these levers — who, when, and what changed.</CardDescription>
+          </CardHeader>
+          <CardContent className='divide-y divide-border'>
+            {auditEntries.map((entry) => (
+              <div key={entry.id} className='py-3'>
+                <div className='flex items-center justify-between text-xs text-muted-foreground'>
+                  <span>{entry.changed_by ?? 'unknown'}</span>
+                  <span>{new Date(entry.changed_at).toLocaleString()}</span>
+                </div>
+                <div className='mt-1.5 space-y-1'>
+                  {entry.changes.map((change) => (
+                    <p key={change.field} className='text-sm'>
+                      <span className='font-mono text-xs text-muted-foreground'>{change.field}</span>:{' '}
+                      <span className='text-red-400'>{JSON.stringify(change.from)}</span>
+                      {' → '}
+                      <span className='text-emerald-500'>{JSON.stringify(change.to)}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {auditEntries.length === 0 && !loading && (
+              <p className='py-8 text-center text-sm text-muted-foreground'>No changes recorded yet.</p>
+            )}
           </CardContent>
         </Card>
       </motion.div>

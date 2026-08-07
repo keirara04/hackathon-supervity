@@ -99,7 +99,7 @@ docker compose ps         # verify postgres, backend, frontend all healthy
 
 | Service | URL |
 |---|---|
-| 🖥️ Command Center | [http://localhost:3001](http://localhost:3001) |
+| 🖥️ Command Center | [http://localhost:8080](http://localhost:8080) |
 | ⚙️ API docs (Swagger) | [http://localhost:8001/api/docs](http://localhost:8001/api/docs) |
 | 🗄️ Template's own Postgres | `localhost:5432` (user `user`, pass `password`) — auth/audit only, not business data |
 

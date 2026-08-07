@@ -94,3 +94,31 @@ async def get_eval_log(limit: int = 50):
     except SupabaseError as e:
         raise HTTPException(status_code=502, detail=f"Supabase error: {e.detail}")
     return {"log": rows, "count": len(rows)}
+
+
+@router.get("/audit")
+async def get_audit(limit: int = 50):
+    try:
+        rows = await sb_get(
+            "policy_audit",
+            {"order": "changed_at.desc", "limit": str(limit)},
+        )
+    except SupabaseError as e:
+        raise HTTPException(status_code=502, detail=f"Supabase error: {e.detail}")
+
+    entries = []
+    for row in rows:
+        old = row.get("old_value") or {}
+        new = row.get("new_value") or {}
+        changes = []
+        for key in VALID_KEYS:
+            if old.get(key) != new.get(key):
+                changes.append({"field": key, "from": old.get(key), "to": new.get(key)})
+        entries.append({
+            "id": row["id"],
+            "changed_at": row["changed_at"],
+            "changed_by": row.get("changed_by"),
+            "changes": changes,
+        })
+
+    return {"entries": entries, "count": len(entries)}
