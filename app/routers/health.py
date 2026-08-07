@@ -24,4 +24,3 @@ def read_ready():
     Public via public.map.json.
     """
     return {"status": "ready"}
-

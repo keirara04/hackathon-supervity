@@ -30,7 +30,6 @@ Usage:
 """
 
 import logging
-from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import Request
@@ -94,7 +93,7 @@ class AuditService:
         """Extract actor ID and email from user dict."""
         if not actor:
             return None, "system"
-        
+
         actor_id = actor.get("sub") or actor.get("id")
         actor_email = (
             actor.get("email")
@@ -396,4 +395,3 @@ class AuditService:
 
 # Singleton instance for easy import
 audit = AuditService()
-

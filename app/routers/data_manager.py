@@ -58,7 +58,11 @@ async def _timed(coro):
 async def _check_zendesk() -> dict:
     if not zendesk_configured():
         missing = [k for k in ZENDESK_MISSING_ENV if not os.getenv(k)]
-        return {"status": "not_configured", "detail": "Zendesk credentials not set in backend .env", "missing_env": missing}
+        return {
+            "status": "not_configured",
+            "detail": "Zendesk credentials not set in backend .env",
+            "missing_env": missing,
+        }
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:

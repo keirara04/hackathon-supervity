@@ -28,4 +28,3 @@ class Settings(Base):
 
     def __repr__(self):
         return f"<Settings(key='{self.key}')>"
-

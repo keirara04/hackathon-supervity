@@ -8,7 +8,6 @@ in the existing (empty) `incidents` table — no schema changes needed.
 """
 
 import logging
-from collections import Counter
 
 from fastapi import APIRouter, HTTPException
 
@@ -81,7 +80,10 @@ async def detect_incidents():
                     {
                         "incident_id": f"INC-{cluster_key}",
                         "title": cluster_key,
-                        "root_cause": f"{info['active']} related tickets sharing cluster '{cluster_key}' are currently unresolved.",
+                        "root_cause": (
+                            f"{info['active']} related tickets sharing cluster "
+                            f"'{cluster_key}' are currently unresolved."
+                        ),
                         "severity": severity,
                         "status": "open",
                         "child_count": info["active"],
@@ -100,7 +102,14 @@ async def detect_incidents():
                 {"parent_incident_id": incident_id},
             )
         except SupabaseError as e:
-            results.append({"cluster_key": cluster_key, "incident_id": incident_id, "created": created, "link_error": e.detail})
+            results.append(
+                {
+                    "cluster_key": cluster_key,
+                    "incident_id": incident_id,
+                    "created": created,
+                    "link_error": e.detail,
+                }
+            )
             continue
 
         results.append({

@@ -115,11 +115,11 @@ async def list_audit_logs(
 ):
     """
     List audit logs with filtering and pagination.
-    
+
     Supports filtering by:
     - Standard fields: category, action, actor, resource, success, severity, date range
     - Middleware fields: HTTP method, response status, is_middleware flag
-    
+
     Requires 'admin' role.
     """
     query = db.query(AuditLog)
@@ -169,14 +169,14 @@ async def get_audit_stats(
 ):
     """
     Get comprehensive audit log statistics.
-    
+
     Returns:
     - Total events, events today/this week
     - Breakdown by category and action
     - Recent errors
     - Middleware-specific: by HTTP method, by status code, avg response time
     - Split between middleware (auto) and custom logs
-    
+
     Requires 'admin' role.
     """
     now = datetime.utcnow()
@@ -262,7 +262,7 @@ async def get_audit_stats(
     # Middleware vs custom log counts
     middleware_logs = (
         db.query(func.count(AuditLog.id))
-        .filter(AuditLog.is_middleware == True)
+        .filter(AuditLog.is_middleware.is_(True))
         .scalar()
         or 0
     )
@@ -307,10 +307,10 @@ async def export_audit_logs(
 ):
     """
     Export audit logs as CSV or Excel.
-    
+
     Supports the same filters as the list endpoint.
     Maximum 100,000 rows per export to prevent memory issues.
-    
+
     Requires 'admin' role.
     """
     query = db.query(AuditLog)
@@ -343,25 +343,25 @@ async def export_audit_logs(
 def _export_csv(logs: list[AuditLog]) -> StreamingResponse:
     """Generate CSV export."""
     output = io.StringIO()
-    
+
     # Define columns
     fieldnames = [
         "ID", "Timestamp", "Actor Email", "Actor IP", "Action", "Category",
         "Severity", "Resource Type", "Resource ID", "Description", "Success",
         "Error", "HTTP Method", "Endpoint", "Status Code", "Response Time (ms)", "Source"
     ]
-    
+
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
-    
+
     for log in logs:
         writer.writerow(log.to_export_dict())
-    
+
     output.seek(0)
-    
+
     # Generate filename with timestamp
     filename = f"audit_logs_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
-    
+
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
@@ -372,7 +372,7 @@ def _export_csv(logs: list[AuditLog]) -> StreamingResponse:
 def _export_xlsx(logs: list[AuditLog]) -> StreamingResponse:
     """
     Generate Excel export.
-    
+
     Note: Requires openpyxl package. Falls back to CSV if not available.
     """
     try:
@@ -381,32 +381,32 @@ def _export_xlsx(logs: list[AuditLog]) -> StreamingResponse:
     except ImportError:
         # Fallback to CSV if openpyxl not installed
         return _export_csv(logs)
-    
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Audit Logs"
-    
+
     # Headers with styling
     headers = [
         "ID", "Timestamp", "Actor Email", "Actor IP", "Action", "Category",
         "Severity", "Resource Type", "Resource ID", "Description", "Success",
         "Error", "HTTP Method", "Endpoint", "Status Code", "Response Time (ms)", "Source"
     ]
-    
+
     header_font = Font(bold=True)
     header_fill = PatternFill(start_color="E0E0E0", end_color="E0E0E0", fill_type="solid")
-    
+
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
         cell.font = header_font
         cell.fill = header_fill
-    
+
     # Data rows
     for row_idx, log in enumerate(logs, 2):
         export_dict = log.to_export_dict()
         for col_idx, header in enumerate(headers, 1):
             ws.cell(row=row_idx, column=col_idx, value=export_dict.get(header, ""))
-    
+
     # Adjust column widths
     for col in ws.columns:
         max_length = 0
@@ -415,18 +415,18 @@ def _export_xlsx(logs: list[AuditLog]) -> StreamingResponse:
             try:
                 if len(str(cell.value)) > max_length:
                     max_length = len(str(cell.value))
-            except:
+            except Exception:
                 pass
         adjusted_width = min(max_length + 2, 50)
         ws.column_dimensions[column].width = adjusted_width
-    
+
     # Save to bytes
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
-    
+
     filename = f"audit_logs_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    
+
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -541,4 +541,3 @@ async def get_actor_audit_trail(
         "page": page,
         "page_size": page_size,
     }
-

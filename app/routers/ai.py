@@ -38,7 +38,8 @@ AUTO_ORG_ID = os.getenv("AUTO_ORG_ID", "")
 # use"). Tools are described in the prompt instead, and the model is asked
 # to respond with a strict JSON protocol that we parse manually.
 TOOL_DESCRIPTIONS = """
-- get_dashboard_kpis(): live operational KPIs — total tickets, auto-resolution rate, SLA compliance, MTTR, ticket volume by day, department breakdown.
+- get_dashboard_kpis(): live operational KPIs — total tickets, auto-resolution rate, SLA
+  compliance, MTTR, ticket volume by day, department breakdown.
 - get_workbench_queue(status="open", limit=20): the human-in-the-loop exception queue.
 - get_policy_config(): current live AI Policy levers (vip_always_escalate, min_kb_confidence, min_auto_score, etc).
 - get_recent_policy_evals(limit=20): recent policy evaluation log rows (ticket, verdict, reason, policy hits).
@@ -296,7 +297,10 @@ async def chat(body: ChatRequest):
             messages.append(
                 {
                     "role": "user",
-                    "content": f"Tool result for {name}: {json.dumps(result, default=str)}\n\nRespond with your next JSON step.",
+                    "content": (
+                        f"Tool result for {name}: {json.dumps(result, default=str)}\n\n"
+                        "Respond with your next JSON step."
+                    ),
                 }
             )
 

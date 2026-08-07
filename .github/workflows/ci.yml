@@ -35,7 +35,7 @@ jobs:
       - name: Test (pytest)
         env:
           APP_ENV: test
-          AUTH_BYPASS: "true"
+          AUTH_BYPASS: "false"
           DATABASE_URL: sqlite:///./test.db
         run: pytest tests -v
 

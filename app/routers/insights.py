@@ -80,7 +80,10 @@ async def get_insights(limit: int = 500):
                     f"{score_gate_hits} of {total_evals} evaluations ({_pct(score_gate_hits, total_evals)}%) "
                     f"were routed to a human solely for falling just under min_auto_score."
                 ),
-                "action": "Inspect the actual auto_score values on these tickets — if most cluster just below the threshold, consider lowering min_auto_score slightly.",
+                "action": (
+                    "Inspect the actual auto_score values on these tickets — if most cluster "
+                    "just below the threshold, consider lowering min_auto_score slightly."
+                ),
                 "confidence": 0.6,
             })
 
@@ -94,7 +97,10 @@ async def get_insights(limit: int = 500):
                     f"{kb_unsafe_hits} evaluations ({_pct(kb_unsafe_hits, total_evals)}%) escalated because "
                     f"the matched KB article's x_auto_safe flag is false."
                 ),
-                "action": "Review the most-hit KB articles behind this — mark safe ones as auto-safe to unlock auto-resolution.",
+                "action": (
+                    "Review the most-hit KB articles behind this — mark safe ones "
+                    "as auto-safe to unlock auto-resolution."
+                ),
                 "confidence": 0.5,
             })
 
@@ -118,7 +124,10 @@ async def get_insights(limit: int = 500):
                     f"{best_dept} accounts for {best_total} of {total_evals} evaluations "
                     f"({_pct(best_total, total_evals)}%), auto-resolving at {best_auto_pct}%."
                 ),
-                "action": "Compare auto-resolution rate across departments to spot where policy tuning would have the most impact.",
+                "action": (
+                    "Compare auto-resolution rate across departments to spot where "
+                    "policy tuning would have the most impact."
+                ),
                 "confidence": 0.7,
             })
 

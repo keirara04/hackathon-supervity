@@ -62,7 +62,10 @@ def _get_keycloak_admin():
     except ImportError:
         raise HTTPException(
             status_code=501,
-            detail="User management requires Keycloak. Set AUTH_BYPASS=false and configure Keycloak, or re-add keycloak_admin service.",
+            detail=(
+                "User management requires Keycloak. Set AUTH_BYPASS=false and "
+                "configure Keycloak, or re-add keycloak_admin service."
+            ),
         )
 
 
@@ -247,10 +250,8 @@ async def admin_create_user(
     try:
         # Auto-generate password if not provided
         password = user_data.password
-        was_auto_generated = False
         if not password:
             password = generate_strong_password(16)
-            was_auto_generated = True
             log.info(f"Auto-generated strong password for new user {user_data.email}")
         else:
             # Validate provided password meets strength requirements
@@ -801,7 +802,7 @@ async def get_user_roles(
         user_data = await keycloak_admin.get_user_by_id(user_id)
         if not user_data:
             raise HTTPException(status_code=404, detail="User not found")
-        
+
         # Get the actual roles from Keycloak
         roles = await keycloak_admin.get_user_roles(user_id)
         return [r["name"] for r in roles]
@@ -1255,7 +1256,7 @@ async def reset_user_password(
             success=True,
             user_id=user_id,
             temporary=password_data.temporary,
-            message=f"Password has been reset for user. "
+            message="Password has been reset for user. "
             + ("User must change password on next login." if password_data.temporary else ""),
         )
     except HTTPException:
@@ -1501,7 +1502,7 @@ async def add_group_member(
             setting_key="group_membership",
             old_value=None,
             new_value=f"{target_user.get('email', member_data.user_id)} -> {group.get('name', group_id)}",
-            description=f"Added user to group",
+            description="Added user to group",
             request=request,
         )
 
@@ -1779,7 +1780,7 @@ async def logout_user(
         return SessionActionResponse(
             success=True,
             action="logout",
-            message=f"User has been logged out from all sessions.",
+            message="User has been logged out from all sessions.",
             count=count,
         )
     except HTTPException:
@@ -1906,4 +1907,3 @@ async def list_admin_events(
     except Exception as e:
         log.error(f"Failed to get admin events: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-

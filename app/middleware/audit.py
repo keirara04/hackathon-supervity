@@ -61,7 +61,7 @@ log = logging.getLogger(__name__)
 class AuditMiddleware(BaseHTTPMiddleware):
     """
     FastAPI middleware that automatically logs all HTTP requests.
-    
+
     Features:
     - Zero configuration required
     - Automatic user detection from JWT
@@ -104,14 +104,14 @@ class AuditMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp):
         super().__init__(app)
         self.enabled = os.getenv("AUDIT_MIDDLEWARE_ENABLED", "true").lower() != "false"
-        
+
         # Get BASE_PATH and build excluded paths with it
         base_path = os.getenv("BASE_PATH", "")
         if base_path and not base_path.startswith("/"):
             base_path = f"/{base_path}"
         if base_path == "/":
             base_path = ""
-        
+
         # Build excluded paths with BASE_PATH prefix
         self.EXCLUDED_PATHS = []
         for path in self.BASE_EXCLUDED_PATHS:
@@ -120,7 +120,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 self.EXCLUDED_PATHS.append(f"^{base_path}{path}")
             # Also add pattern without BASE_PATH (for root access)
             self.EXCLUDED_PATHS.append(f"^{path}")
-        
+
         # Add custom excluded paths from environment
         custom_excludes = os.getenv("AUDIT_EXCLUDE_PATHS", "")
         if custom_excludes:
@@ -136,7 +136,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
     def _mask_sensitive_data(self, data: Any, depth: int = 0) -> Any:
         """
         Recursively mask sensitive fields in data.
-        
+
         Examples:
             {"password": "secret123"} -> {"password": "***MASKED***"}
             {"user": {"api_key": "abc"}} -> {"user": {"api_key": "***MASKED***"}}
@@ -184,7 +184,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
     def _extract_user_from_request(self, request: Request) -> tuple[Optional[str], Optional[str]]:
         """
         Extract user info from request.
-        
+
         Tries to get user info from:
         1. Request state (set by auth middleware - checked after response)
         2. Authorization header (decode JWT directly)
@@ -203,7 +203,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 # Decode JWT without verification (we just need the claims)
                 # The actual verification is done by the auth middleware
                 import base64
-                
+
                 # JWT has 3 parts: header.payload.signature
                 parts = token.split(".")
                 if len(parts) >= 2:
@@ -212,17 +212,17 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     padding = 4 - len(payload) % 4
                     if padding != 4:
                         payload += "=" * padding
-                    
+
                     decoded = base64.urlsafe_b64decode(payload)
                     claims = json.loads(decoded)
-                    
+
                     user_id = claims.get("sub")
                     user_email = (
-                        claims.get("email") 
+                        claims.get("email")
                         or claims.get("preferred_username")
                         or claims.get("username")
                     )
-                    
+
                     if user_id or user_email:
                         return user_id, user_email
             except Exception as e:
@@ -243,7 +243,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
     def _categorize_endpoint(self, path: str, method: str) -> tuple[str, str]:
         """
         Auto-detect category and action from endpoint.
-        
+
         Returns:
             (category, action) tuple
         """
@@ -280,7 +280,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
         # Generate request ID for correlation
         request_id = str(uuid.uuid4())[:8]
-        
+
         # Start timing
         start_time = time.time()
 
@@ -290,7 +290,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             try:
                 body = await request.body()
                 request_body = self._parse_and_mask_body(body)
-                
+
                 # We need to reset the body since we consumed it
                 # FastAPI handles this automatically with the Request object
             except Exception:
@@ -404,4 +404,3 @@ class AuditMiddleware(BaseHTTPMiddleware):
             db.rollback()
         finally:
             db.close()
-

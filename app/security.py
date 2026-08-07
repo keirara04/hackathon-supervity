@@ -56,7 +56,10 @@ def _get_keycloak_urls() -> tuple[str, str]:
 
 
 if AUTH_BYPASS:
-    log.warning("⚠️  AUTH_BYPASS is enabled — all requests will be authenticated as Dev User. Do NOT use in production.")
+    log.warning(
+        "⚠️  AUTH_BYPASS is enabled — all requests will be authenticated as Dev User. "
+        "Do NOT use in production."
+    )
 elif KEYCLOAK_SERVER_URL:
     log.info(f"Keycloak configured with server URL: {KEYCLOAK_SERVER_URL}")
 else:

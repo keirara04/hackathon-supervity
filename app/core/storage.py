@@ -8,16 +8,16 @@ Supports:
 
 Usage:
     from app.core.storage import storage
-    
+
     # Upload a file
     url = await storage.upload("path/to/file.pdf", file_bytes, content_type="application/pdf")
-    
+
     # Download a file
     data = await storage.download("path/to/file.pdf")
-    
+
     # Delete a file
     await storage.delete("path/to/file.pdf")
-    
+
     # List files
     files = await storage.list_files("path/to/folder/")
 """
@@ -229,7 +229,7 @@ class GCSStorage(StorageBackend):
         try:
             data = await loop.run_in_executor(None, blob.download_as_bytes)
             return data
-        except Exception as e:
+        except Exception:
             # GCS raises google.cloud.exceptions.NotFound when blob doesn't exist
             raise FileNotFoundError(f"File not found: {path}")
 
