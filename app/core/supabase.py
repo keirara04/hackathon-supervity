@@ -66,14 +66,18 @@ async def sb_patch(table: str, params: dict, body: dict) -> list[dict]:
     return resp.json()
 
 
-async def sb_upsert(table: str, body: dict | list[dict], on_conflict: str) -> list[dict]:
+async def sb_upsert(
+    table: str, body: dict | list[dict], on_conflict: str
+) -> list[dict]:
     """Insert or update-on-conflict. Only the columns present in `body` are
     written on the UPDATE branch — existing columns not included (e.g. a
     downstream operator's derived fields) are left untouched."""
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(
             f"{SUPABASE_URL}/rest/v1/{table}",
-            headers=_headers(prefer="resolution=merge-duplicates,return=representation"),
+            headers=_headers(
+                prefer="resolution=merge-duplicates,return=representation"
+            ),
             params={"on_conflict": on_conflict},
             json=body,
         )

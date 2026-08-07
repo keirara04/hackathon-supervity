@@ -10,49 +10,49 @@ Supports both:
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class AuditLogResponse(BaseModel):
     """
     Response model for a single audit log entry.
-    
+
     Includes both custom log fields and middleware-specific fields.
     The `is_middleware` field indicates whether this was auto-logged.
     """
 
     id: int
     timestamp: datetime
-    
+
     # Who
     actor_id: Optional[str] = None
     actor_email: Optional[str] = None
     actor_ip: Optional[str] = None
     actor_user_agent: Optional[str] = None
-    
+
     # What
     action: str
     category: str
     severity: str
-    
+
     # On What
     resource_type: Optional[str] = None
     resource_id: Optional[str] = None
     resource_name: Optional[str] = None
-    
+
     # Details
     description: str
     extra_data: Optional[dict[str, Any]] = None
-    
+
     # Result
     success: str
     error_message: Optional[str] = None
-    
+
     # Context
     endpoint: Optional[str] = None
     request_id: Optional[str] = None
     session_id: Optional[str] = None
-    
+
     # Middleware-specific fields (populated for automatic logs)
     http_method: Optional[str] = None
     request_body: Optional[str] = None
@@ -108,4 +108,3 @@ class AuditStatsResponse(BaseModel):
     avg_response_time_ms: Optional[float] = None
     middleware_logs: int = 0
     custom_logs: int = 0
-

@@ -38,7 +38,8 @@ AUTO_ORG_ID = os.getenv("AUTO_ORG_ID", "")
 # use"). Tools are described in the prompt instead, and the model is asked
 # to respond with a strict JSON protocol that we parse manually.
 TOOL_DESCRIPTIONS = """
-- get_dashboard_kpis(): live operational KPIs — total tickets, auto-resolution rate, SLA compliance, MTTR, ticket volume by day, department breakdown.
+- get_dashboard_kpis(): live operational KPIs — total tickets, auto-resolution rate, SLA
+  compliance, MTTR, ticket volume by day, department breakdown.
 - get_workbench_queue(status="open", limit=20): the human-in-the-loop exception queue.
 - get_policy_config(): current live AI Policy levers (vip_always_escalate, min_kb_confidence, min_auto_score, etc).
 - get_recent_policy_evals(limit=20): recent policy evaluation log rows (ticket, verdict, reason, policy hits).
@@ -170,10 +171,16 @@ async def _tool_trigger_orchestrator_run(args: dict) -> dict:
                     "x-active-org": AUTO_ORG_ID,
                     "x-source": "external",
                 },
-                data={"workflowId": AUTO_WORKFLOW_ID, "inputs": json.dumps({"reason": args.get("reason", "")})},
+                data={
+                    "workflowId": AUTO_WORKFLOW_ID,
+                    "inputs": json.dumps({"reason": args.get("reason", "")}),
+                },
             )
         if resp.status_code >= 300:
-            return {"status": "error", "detail": f"Auto returned HTTP {resp.status_code}: {resp.text[:300]}"}
+            return {
+                "status": "error",
+                "detail": f"Auto returned HTTP {resp.status_code}: {resp.text[:300]}",
+            }
         return {"status": "triggered", "detail": resp.json()}
     except Exception as e:  # noqa: BLE001
         return {"status": "error", "detail": str(e)}
@@ -202,7 +209,9 @@ class ChatRequest(BaseModel):
 
 async def _call_openrouter(messages: list[dict]) -> str:
     if not OPENROUTER_API_KEY:
-        raise HTTPException(status_code=503, detail="OPENROUTER_API_KEY not configured on backend")
+        raise HTTPException(
+            status_code=503, detail="OPENROUTER_API_KEY not configured on backend"
+        )
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
@@ -217,7 +226,10 @@ async def _call_openrouter(messages: list[dict]) -> str:
             },
         )
     if resp.status_code >= 300:
-        raise HTTPException(status_code=502, detail=f"OpenRouter error {resp.status_code}: {resp.text[:500]}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"OpenRouter error {resp.status_code}: {resp.text[:500]}",
+        )
     return resp.json()["choices"][0]["message"]["content"] or ""
 
 
@@ -261,7 +273,11 @@ async def chat(body: ChatRequest):
                 # Guard: a data-shaped answer (contains a digit) given before
                 # any tool was called is almost certainly a hallucination —
                 # force one retry with an explicit nudge instead of trusting it.
-                if not tool_call_log and not nudged and any(c.isdigit() for c in str(answer)):
+                if (
+                    not tool_call_log
+                    and not nudged
+                    and any(c.isdigit() for c in str(answer))
+                ):
                     nudged = True
                     messages.append({"role": "assistant", "content": content})
                     messages.append(
@@ -275,7 +291,10 @@ async def chat(body: ChatRequest):
                     )
                     continue
 
-                return {"response": answer or "I don't have an answer for that.", "tool_calls": tool_call_log}
+                return {
+                    "response": answer or "I don't have an answer for that.",
+                    "tool_calls": tool_call_log,
+                }
 
             name = parsed.get("tool")
             args = parsed.get("args") or {}
@@ -290,13 +309,23 @@ async def chat(body: ChatRequest):
                     result = {"error": f"Supabase error: {e.detail}"}
 
             call_id = f"call_{len(tool_call_log)}"
-            tool_call_log.append({"id": call_id, "name": name or "unknown", "args": args, "result": result})
+            tool_call_log.append(
+                {
+                    "id": call_id,
+                    "name": name or "unknown",
+                    "args": args,
+                    "result": result,
+                }
+            )
 
             messages.append({"role": "assistant", "content": content})
             messages.append(
                 {
                     "role": "user",
-                    "content": f"Tool result for {name}: {json.dumps(result, default=str)}\n\nRespond with your next JSON step.",
+                    "content": (
+                        f"Tool result for {name}: {json.dumps(result, default=str)}\n\n"
+                        "Respond with your next JSON step."
+                    ),
                 }
             )
 

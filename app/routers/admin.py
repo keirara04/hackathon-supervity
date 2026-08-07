@@ -58,11 +58,15 @@ def _get_keycloak_admin():
     """
     try:
         from ..services.keycloak_admin import keycloak_admin
+
         return keycloak_admin
     except ImportError:
         raise HTTPException(
             status_code=501,
-            detail="User management requires Keycloak. Set AUTH_BYPASS=false and configure Keycloak, or re-add keycloak_admin service.",
+            detail=(
+                "User management requires Keycloak. Set AUTH_BYPASS=false and "
+                "configure Keycloak, or re-add keycloak_admin service."
+            ),
         )
 
 
@@ -70,6 +74,7 @@ def _get_keycloak_admin():
 # All call sites use `keycloak_admin.xxx()` — we make it lazy:
 class _LazyKeycloakAdmin:
     """Proxy that defers to the real keycloak_admin on attribute access."""
+
     def __getattr__(self, name):
         return getattr(_get_keycloak_admin(), name)
 
@@ -138,7 +143,10 @@ def validate_password_strength(password: str) -> tuple[bool, str]:
 
     special_chars = set("!@#$%^&*()_+-=[]{}|;:,.<>?")
     if not any(c in special_chars for c in password):
-        return False, "Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)"
+        return (
+            False,
+            "Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)",
+        )
 
     return True, ""
 
@@ -247,10 +255,8 @@ async def admin_create_user(
     try:
         # Auto-generate password if not provided
         password = user_data.password
-        was_auto_generated = False
         if not password:
             password = generate_strong_password(16)
-            was_auto_generated = True
             log.info(f"Auto-generated strong password for new user {user_data.email}")
         else:
             # Validate provided password meets strength requirements
@@ -283,7 +289,9 @@ async def admin_create_user(
             await keycloak_admin.assign_role(user_id, "admin")
             result["role"] = "admin"
             result["requires_approval"] = False
-            log.info(f"[AUDIT] Admin {actor_email} created admin user {user_data.email}")
+            log.info(
+                f"[AUDIT] Admin {actor_email} created admin user {user_data.email}"
+            )
         elif user_data.role == "user":
             try:
                 await keycloak_admin.remove_role(user_id, "pending")
@@ -306,7 +314,9 @@ async def admin_create_user(
             )
 
         # Build response message
-        temp_note = " (must change on first login)" if user_data.temporaryPassword else ""
+        temp_note = (
+            " (must change on first login)" if user_data.temporaryPassword else ""
+        )
         message = f"User created with role '{result['role']}'. Share the password with them securely{temp_note}."
 
         return UserRegistrationResponse(
@@ -371,7 +381,10 @@ async def bulk_delete_users_by_domain(
             actor=user,
             affected_count=deleted_count,
             description=f"Bulk deleted {deleted_count} users from domain @{domain}",
-            metadata={"domain": domain, "deleted_emails": deleted_emails[:10]},  # First 10 for audit
+            metadata={
+                "domain": domain,
+                "deleted_emails": deleted_emails[:10],
+            },  # First 10 for audit
             request=request,
         )
         return BulkActionResponse(
@@ -665,7 +678,9 @@ async def delete_user(
     try:
         current_user_id = user.get("sub")
         if current_user_id == user_id:
-            raise HTTPException(status_code=400, detail="Cannot delete your own account")
+            raise HTTPException(
+                status_code=400, detail="Cannot delete your own account"
+            )
 
         await keycloak_admin.delete_user(user_id)
         await audit.log_user_action(
@@ -801,7 +816,7 @@ async def get_user_roles(
         user_data = await keycloak_admin.get_user_by_id(user_id)
         if not user_data:
             raise HTTPException(status_code=404, detail="User not found")
-        
+
         # Get the actual roles from Keycloak
         roles = await keycloak_admin.get_user_roles(user_id)
         return [r["name"] for r in roles]
@@ -836,7 +851,9 @@ async def assign_role_to_user(
         # Verify role exists
         role = await keycloak_admin.get_role_by_name(role_data.role_name)
         if not role:
-            raise HTTPException(status_code=404, detail=f"Role '{role_data.role_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Role '{role_data.role_name}' not found"
+            )
 
         # Assign the role
         await keycloak_admin.assign_role(user_id, role_data.role_name)
@@ -1112,7 +1129,9 @@ async def create_role(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.put("/roles/{role_name}", response_model=RoleActionResponse, tags=["Admin Roles"])
+@router.put(
+    "/roles/{role_name}", response_model=RoleActionResponse, tags=["Admin Roles"]
+)
 async def update_role(
     role_name: str,
     role_data: RoleUpdateRequest,
@@ -1149,7 +1168,9 @@ async def update_role(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/roles/{role_name}", response_model=RoleActionResponse, tags=["Admin Roles"])
+@router.delete(
+    "/roles/{role_name}", response_model=RoleActionResponse, tags=["Admin Roles"]
+)
 async def delete_role(
     role_name: str,
     request: Request,
@@ -1183,7 +1204,9 @@ async def delete_role(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/roles/{role_name}/users", response_model=list[UserResponse], tags=["Admin Roles"])
+@router.get(
+    "/roles/{role_name}/users", response_model=list[UserResponse], tags=["Admin Roles"]
+)
 async def get_role_users(role_name: str, user: dict = Depends(get_current_user)):
     """
     Get all users who have a specific role.
@@ -1255,8 +1278,12 @@ async def reset_user_password(
             success=True,
             user_id=user_id,
             temporary=password_data.temporary,
-            message=f"Password has been reset for user. "
-            + ("User must change password on next login." if password_data.temporary else ""),
+            message="Password has been reset for user. "
+            + (
+                "User must change password on next login."
+                if password_data.temporary
+                else ""
+            ),
         )
     except HTTPException:
         raise
@@ -1368,7 +1395,9 @@ async def create_group(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.put("/groups/{group_id}", response_model=GroupActionResponse, tags=["Admin Groups"])
+@router.put(
+    "/groups/{group_id}", response_model=GroupActionResponse, tags=["Admin Groups"]
+)
 async def update_group(
     group_id: str,
     group_data: GroupUpdateRequest,
@@ -1406,7 +1435,9 @@ async def update_group(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/groups/{group_id}", response_model=GroupActionResponse, tags=["Admin Groups"])
+@router.delete(
+    "/groups/{group_id}", response_model=GroupActionResponse, tags=["Admin Groups"]
+)
 async def delete_group(
     group_id: str,
     request: Request,
@@ -1501,7 +1532,7 @@ async def add_group_member(
             setting_key="group_membership",
             old_value=None,
             new_value=f"{target_user.get('email', member_data.user_id)} -> {group.get('name', group_id)}",
-            description=f"Added user to group",
+            description="Added user to group",
             request=request,
         )
 
@@ -1663,7 +1694,9 @@ async def list_all_sessions(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/sessions/stats", response_model=SessionStatsResponse, tags=["Admin Sessions"])
+@router.get(
+    "/sessions/stats", response_model=SessionStatsResponse, tags=["Admin Sessions"]
+)
 async def get_session_stats(user: dict = Depends(get_current_user)):
     """
     Get session statistics for the realm.
@@ -1779,7 +1812,7 @@ async def logout_user(
         return SessionActionResponse(
             success=True,
             action="logout",
-            message=f"User has been logged out from all sessions.",
+            message="User has been logged out from all sessions.",
             count=count,
         )
     except HTTPException:
@@ -1906,4 +1939,3 @@ async def list_admin_events(
     except Exception as e:
         log.error(f"Failed to get admin events: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-

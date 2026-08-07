@@ -53,8 +53,7 @@ class AdminCreateUser(BaseModel):
         default="user", description="Initial role: user, admin, or pending"
     )
     temporaryPassword: bool = Field(
-        default=True,
-        description="If true, user must change password on first login"
+        default=True, description="If true, user must change password on first login"
     )
 
 
@@ -100,7 +99,9 @@ class RoleResponse(BaseModel):
 class RoleCreateRequest(BaseModel):
     """Request model for creating a new role."""
 
-    name: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-zA-Z][a-zA-Z0-9_-]*$")
+    name: str = Field(
+        ..., min_length=1, max_length=100, pattern=r"^[a-zA-Z][a-zA-Z0-9_-]*$"
+    )
     description: str = Field(default="", max_length=500)
 
 
@@ -150,8 +151,7 @@ class PasswordResetRequest(BaseModel):
 
     password: str = Field(..., min_length=12, max_length=128)
     temporary: bool = Field(
-        default=True,
-        description="If true, user must change password on next login"
+        default=True, description="If true, user must change password on next login"
     )
 
 

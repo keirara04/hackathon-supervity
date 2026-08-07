@@ -36,4 +36,3 @@ class PendingStatusResponse(BaseModel):
     is_pending: bool
     roles: list[str]
     message: str
-

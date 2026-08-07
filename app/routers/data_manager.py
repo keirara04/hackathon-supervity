@@ -44,7 +44,12 @@ SUPABASE_TABLES = [
     "policy_audit",
 ]
 
-ZENDESK_MISSING_ENV = ["ZENDESK_SUBDOMAIN", "ZENDESK_CLIENT_ID", "ZENDESK_CLIENT_SECRET", "ZENDESK_TOKEN_URL"]
+ZENDESK_MISSING_ENV = [
+    "ZENDESK_SUBDOMAIN",
+    "ZENDESK_CLIENT_ID",
+    "ZENDESK_CLIENT_SECRET",
+    "ZENDESK_TOKEN_URL",
+]
 OUTLOOK_MISSING_ENV = ["AUTO_WORKFLOW_API_KEY", "OUTLOOK_INTEGRATION_ID"]
 
 
@@ -58,20 +63,32 @@ async def _timed(coro):
 async def _check_zendesk() -> dict:
     if not zendesk_configured():
         missing = [k for k in ZENDESK_MISSING_ENV if not os.getenv(k)]
-        return {"status": "not_configured", "detail": "Zendesk credentials not set in backend .env", "missing_env": missing}
+        return {
+            "status": "not_configured",
+            "detail": "Zendesk credentials not set in backend .env",
+            "missing_env": missing,
+        }
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             token = await get_zendesk_token(client)
             if not token:
-                return {"status": "down", "detail": "token exchange failed", "missing_env": []}
+                return {
+                    "status": "down",
+                    "detail": "token exchange failed",
+                    "missing_env": [],
+                }
 
             me_resp = await client.get(
                 f"https://{ZENDESK_SUBDOMAIN}.zendesk.com/api/v2/users/me.json",
                 headers={"Authorization": f"Bearer {token}"},
             )
             if me_resp.status_code >= 300:
-                return {"status": "down", "detail": f"users/me HTTP {me_resp.status_code}", "missing_env": []}
+                return {
+                    "status": "down",
+                    "detail": f"users/me HTTP {me_resp.status_code}",
+                    "missing_env": [],
+                }
         return {"status": "up", "detail": "authenticated", "missing_env": []}
     except Exception as e:  # noqa: BLE001
         return {"status": "down", "detail": str(e), "missing_env": []}
@@ -81,11 +98,21 @@ async def _check_outlook() -> dict:
     # Outlook is wired as a native Auto integration on the Orchestrator side —
     # there is no direct credential in this backend to probe. Reported as
     # "managed" rather than faking an up/down check.
-    configured = bool(os.getenv("OUTLOOK_INTEGRATION_ID") or os.getenv("AUTO_WORKFLOW_API_KEY"))
+    configured = bool(
+        os.getenv("OUTLOOK_INTEGRATION_ID") or os.getenv("AUTO_WORKFLOW_API_KEY")
+    )
     if configured:
-        return {"status": "up", "detail": "managed via Auto orchestrator", "missing_env": []}
+        return {
+            "status": "up",
+            "detail": "managed via Auto orchestrator",
+            "missing_env": [],
+        }
     missing = [k for k in OUTLOOK_MISSING_ENV if not os.getenv(k)]
-    return {"status": "not_configured", "detail": "no Auto workflow key set in backend .env", "missing_env": missing}
+    return {
+        "status": "not_configured",
+        "detail": "no Auto workflow key set in backend .env",
+        "missing_env": missing,
+    }
 
 
 @router.get("/health")
@@ -95,7 +122,10 @@ async def get_health():
     outlook, outlook_latency = await _timed(_check_outlook())
 
     table_counts = await asyncio.gather(*(sb_count(t) for t in SUPABASE_TABLES))
-    tables = [{"name": name, "count": count} for name, count in zip(SUPABASE_TABLES, table_counts)]
+    tables = [
+        {"name": name, "count": count}
+        for name, count in zip(SUPABASE_TABLES, table_counts)
+    ]
 
     systems = [
         {
