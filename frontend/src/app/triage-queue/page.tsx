@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,15 @@ interface TriageItem {
   hours_to_breach: number | null
   cluster_key: string | null
   channel: string | null
+  queue_status: 'queued' | 'released'
+  released_run_id: string | null
+  released_at: string | null
+  rank: number | null
+}
+
+const STATUS_STYLES: Record<string, string> = {
+  queued: 'bg-brand-cornflower/15 text-brand-cornflower',
+  released: 'bg-emerald-500/15 text-emerald-500',
 }
 
 const containerVariants = {
@@ -41,9 +51,11 @@ export default function TriageQueuePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [detailItem, setDetailItem] = useState<TriageItem | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'queued' | 'released'>('all')
 
+  const statusFiltered = items.filter((item) => statusFilter === 'all' || item.queue_status === statusFilter)
   const { query, setQuery, filtered: visibleItems } = useSearchFilter(
-    items,
+    statusFiltered,
     (item) => `${item.issue_key} ${item.summary} ${item.department ?? ''} ${item.cluster_key ?? ''}`
   )
 
@@ -51,8 +63,11 @@ export default function TriageQueuePage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await apiClient.get<{ queue: TriageItem[]; count: number }>('/api/triage-queue?limit=200')
-      setItems(res.queue)
+      const [queuedRes, releasedRes] = await Promise.all([
+        apiClient.get<{ queue: TriageItem[] }>('/api/triage-queue?queue_status=queued&limit=200'),
+        apiClient.get<{ queue: TriageItem[] }>('/api/triage-queue?queue_status=released&limit=200'),
+      ])
+      setItems([...queuedRes.queue, ...releasedRes.queue])
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load triage queue')
     } finally {
@@ -76,7 +91,8 @@ export default function TriageQueuePage() {
         <div>
           <h1 className='text-display-3 font-bold tracking-tight text-brand-navy'>Triage Queue</h1>
           <p className='mt-2 text-lg text-muted-foreground'>
-            {items.length} tickets ranked and waiting to be released into a run.
+            {items.filter((i) => i.queue_status === 'queued').length} queued,{' '}
+            {items.filter((i) => i.queue_status === 'released').length} released.
           </p>
         </div>
         <Button variant='outline' size='sm' onClick={load} disabled={loading}>
@@ -96,21 +112,39 @@ export default function TriageQueuePage() {
         </motion.div>
       )}
 
-      <motion.div variants={itemVariants} className='relative'>
-        <Icons.search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder='Search ticket, summary, department, cluster...'
-          className='w-full rounded-full border border-border bg-muted/10 py-2 pl-9 pr-4 text-sm outline-none focus:border-primary/50 sm:max-w-sm'
-        />
+      <motion.div variants={itemVariants} className='flex flex-wrap items-center gap-3'>
+        <div className='relative flex-1 sm:max-w-sm'>
+          <Icons.search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder='Search ticket, summary, department, cluster...'
+            className='w-full rounded-full border border-border bg-muted/10 py-2 pl-9 pr-4 text-sm outline-none focus:border-primary/50'
+          />
+        </div>
+        <div className='flex gap-2'>
+          {(['all', 'queued', 'released'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs font-medium capitalize transition-colors',
+                statusFilter === s
+                  ? 'border-primary/50 bg-primary/10 text-primary'
+                  : 'border-border bg-muted/10 text-muted-foreground hover:bg-muted/20'
+              )}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
       </motion.div>
 
       <motion.div variants={itemVariants}>
         <Card>
           <CardHeader>
-            <CardTitle>Queued, by priority</CardTitle>
-            <CardDescription>Highest priority_score first — what the Orchestrator would pick up next.</CardDescription>
+            <CardTitle>Queued and released tickets</CardTitle>
+            <CardDescription>Queued: highest priority_score first — what the Orchestrator would pick up next. Released: already sent into a run.</CardDescription>
           </CardHeader>
           <CardContent>
             {/* Mobile: stacked cards, no horizontal scrolling */}
@@ -141,6 +175,9 @@ export default function TriageQueuePage() {
                   </div>
                   <p className='mt-1.5 text-sm text-muted-foreground'>{item.summary}</p>
                   <div className='mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
+                    <span className={cn('rounded-full px-2 py-0.5 font-medium capitalize', STATUS_STYLES[item.queue_status])}>
+                      {item.queue_status}
+                    </span>
                     <span className='font-mono'>{item.priority_tier ?? '—'}</span>
                     <span>({item.priority_score ?? '—'})</span>
                     {item.department && <span>· {item.department}</span>}
@@ -161,7 +198,7 @@ export default function TriageQueuePage() {
                 </div>
               ))}
               {visibleItems.length === 0 && !loading && (
-                <p className='py-8 text-center text-sm text-muted-foreground'>Queue is empty.</p>
+                <p className='py-8 text-center text-sm text-muted-foreground'>No tickets match this filter.</p>
               )}
             </div>
 
@@ -171,6 +208,7 @@ export default function TriageQueuePage() {
                 <thead>
                   <tr className='border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground'>
                     <th className='pb-2 pr-4'>Ticket</th>
+                    <th className='pb-2 pr-4'>Status</th>
                     <th className='pb-2 pr-4'>Summary</th>
                     <th className='pb-2 pr-4'>Priority</th>
                     <th className='pb-2 pr-4'>SLA</th>
@@ -193,6 +231,11 @@ export default function TriageQueuePage() {
                             VIP
                           </span>
                         )}
+                      </td>
+                      <td className='py-2 pr-4'>
+                        <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium capitalize', STATUS_STYLES[item.queue_status])}>
+                          {item.queue_status}
+                        </span>
                       </td>
                       <td className='max-w-sm truncate py-2 pr-4 text-muted-foreground'>{item.summary}</td>
                       <td className='py-2 pr-4'>
@@ -237,7 +280,7 @@ export default function TriageQueuePage() {
                 </tbody>
               </table>
               {visibleItems.length === 0 && !loading && (
-                <p className='py-8 text-center text-sm text-muted-foreground'>Queue is empty.</p>
+                <p className='py-8 text-center text-sm text-muted-foreground'>No tickets match this filter.</p>
               )}
             </div>
           </CardContent>
@@ -253,6 +296,9 @@ export default function TriageQueuePage() {
                 <DialogTitle>
                   {detailItem.issue_key}
                   {detailItem.is_vip && <span className='ml-2 text-xs font-semibold uppercase text-brand-purple'>VIP</span>}
+                  <span className={cn('ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize', STATUS_STYLES[detailItem.queue_status])}>
+                    {detailItem.queue_status}
+                  </span>
                 </DialogTitle>
                 <DialogDescription>{detailItem.summary}</DialogDescription>
               </DialogHeader>
@@ -264,6 +310,25 @@ export default function TriageQueuePage() {
                 <p><span className='font-semibold text-foreground'>Department:</span> {detailItem.department ?? '—'}</p>
                 <p><span className='font-semibold text-foreground'>Channel:</span> {detailItem.channel ?? '—'}</p>
                 <p><span className='font-semibold text-foreground'>Cluster:</span> {detailItem.cluster_key ?? '—'}</p>
+                {detailItem.queue_status === 'released' && (
+                  <>
+                    <p><span className='font-semibold text-foreground'>Released at:</span> {detailItem.released_at ? new Date(detailItem.released_at).toLocaleString() : '—'}</p>
+                    <p className='col-span-2'>
+                      <span className='font-semibold text-foreground'>Released to run:</span>{' '}
+                      {detailItem.released_run_id ? (
+                        <Link
+                          href={`/run-log?run_id=${detailItem.released_run_id}`}
+                          className='font-mono text-primary hover:underline'
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {detailItem.released_run_id.slice(0, 8)}
+                        </Link>
+                      ) : (
+                        '—'
+                      )}
+                    </p>
+                  </>
+                )}
               </div>
             </>
           )}

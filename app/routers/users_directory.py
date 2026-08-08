@@ -12,7 +12,14 @@ import secrets
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..core.supabase import SupabaseError, sb_delete, sb_get, sb_get_one, sb_patch, sb_post
+from ..core.supabase import (
+    SupabaseError,
+    sb_delete,
+    sb_get,
+    sb_get_one,
+    sb_patch,
+    sb_post,
+)
 
 log = logging.getLogger(__name__)
 
@@ -46,7 +53,9 @@ async def list_users():
 
 @router.post("")
 async def create_user(body: UserCreate):
-    account_id = secrets.token_hex(12)  # 24 hex chars, matches the existing real ID format
+    account_id = secrets.token_hex(
+        12
+    )  # 24 hex chars, matches the existing real ID format
     payload = {"account_id": account_id, **body.model_dump()}
     try:
         rows = await sb_post("users_directory", payload)
@@ -61,7 +70,9 @@ async def update_user(account_id: str, body: UserUpdate):
     if not updates:
         raise HTTPException(status_code=400, detail="No fields provided")
     try:
-        rows = await sb_patch("users_directory", {"account_id": f"eq.{account_id}"}, updates)
+        rows = await sb_patch(
+            "users_directory", {"account_id": f"eq.{account_id}"}, updates
+        )
     except SupabaseError as e:
         raise HTTPException(status_code=502, detail=f"Supabase error: {e.detail}")
     if not rows:
@@ -72,7 +83,9 @@ async def update_user(account_id: str, body: UserUpdate):
 @router.delete("/{account_id}")
 async def delete_user(account_id: str):
     try:
-        existing = await sb_get_one("users_directory", {"account_id": f"eq.{account_id}"})
+        existing = await sb_get_one(
+            "users_directory", {"account_id": f"eq.{account_id}"}
+        )
         if existing is None:
             raise HTTPException(status_code=404, detail="User not found")
         await sb_delete("users_directory", {"account_id": f"eq.{account_id}"})

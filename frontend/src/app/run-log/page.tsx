@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -51,6 +52,15 @@ const PATH_STYLES: Record<string, string> = {
 }
 
 export default function RunLogPage() {
+  return (
+    <Suspense fallback={null}>
+      <RunLogPageInner />
+    </Suspense>
+  )
+}
+
+function RunLogPageInner() {
+  const searchParams = useSearchParams()
   const [runs, setRuns] = useState<RunMetric[]>([])
   const [tickets, setTickets] = useState<RunLogTicket[]>([])
   const [loading, setLoading] = useState(true)
@@ -58,6 +68,12 @@ export default function RunLogPage() {
   const [pathFilter, setPathFilter] = useState<string>('all')
   const [runIdFilter, setRunIdFilter] = useState<string | null>(null)
   const [detailTicket, setDetailTicket] = useState<RunLogTicket | null>(null)
+
+  // Deep-link from Triage Queue: /run-log?run_id=... pre-selects the run.
+  useEffect(() => {
+    const runId = searchParams.get('run_id')
+    if (runId) setRunIdFilter(runId)
+  }, [searchParams])
 
   const load = useCallback(async () => {
     setLoading(true)
