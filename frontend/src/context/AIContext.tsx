@@ -3,6 +3,14 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
 
+// crypto.randomUUID() only exists in secure contexts (HTTPS or localhost) —
+// throws on plain-HTTP deployments (e.g. a bare IP with no TLS). generateId()
+// works everywhere; it doesn't need to be cryptographically unique, just
+// unique enough for React keys within one session.
+function generateId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -74,12 +82,12 @@ export function AIProvider({ children }: { children: ReactNode }) {
         const withoutLoading = prev.filter(m => !m.isLoading)
         return [
           ...withoutLoading,
-          { ...msg, id: crypto.randomUUID(), timestamp: new Date() },
+          { ...msg, id: generateId(), timestamp: new Date() },
         ]
       }
       return [
         ...prev,
-        { ...msg, id: crypto.randomUUID(), timestamp: new Date() },
+        { ...msg, id: generateId(), timestamp: new Date() },
       ]
     })
   }, [])
