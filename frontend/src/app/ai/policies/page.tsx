@@ -114,20 +114,75 @@ function LeverControl({
   }
 
   if (lever.type === 'object') {
-    const text = typeof value === 'object' && value !== null ? JSON.stringify(value, null, 0) : '{}'
+    const obj = (typeof value === 'object' && value !== null ? value : {}) as Record<string, string>
+    const entries = Object.entries(obj)
+
+    const updateValue = (key: string, val: string) => onChange({ ...obj, [key]: val })
+
+    const renameKey = (oldKey: string, newKey: string) => {
+      newKey = newKey.trim()
+      if (!newKey || newKey === oldKey || newKey in obj) return
+      const next: Record<string, string> = {}
+      for (const [k, v] of Object.entries(obj)) next[k === oldKey ? newKey : k] = v
+      onChange(next)
+    }
+
+    const removeRow = (key: string) => {
+      const next = { ...obj }
+      delete next[key]
+      onChange(next)
+    }
+
+    const addRow = () => {
+      let newKey = 'component'
+      let i = 1
+      while (newKey in obj) newKey = `component_${i++}`
+      onChange({ ...obj, [newKey]: '' })
+    }
+
     return (
-      <input
-        type='text'
-        defaultValue={text}
-        onBlur={(e) => {
-          try {
-            onChange(JSON.parse(e.target.value))
-          } catch {
-            // ignore invalid JSON until corrected
-          }
-        }}
-        className='w-full rounded-lg border border-border bg-muted/10 px-3 py-1.5 font-mono text-xs outline-none focus:border-primary/50 sm:w-72'
-      />
+      <div className='w-full space-y-1.5 sm:w-80'>
+        {entries.map(([k, v]) => (
+          <div key={k} className='flex items-center gap-1.5'>
+            <input
+              type='text'
+              defaultValue={k === '_default' ? 'default (fallback)' : k}
+              disabled={k === '_default'}
+              onBlur={(e) => renameKey(k, e.target.value)}
+              placeholder='component'
+              title='Ticket component this routes'
+              className='w-32 shrink-0 rounded-lg border border-border bg-muted/10 px-2 py-1.5 text-xs capitalize outline-none focus:border-primary/50 disabled:opacity-60'
+            />
+            <Icons.chevronRight className='h-3.5 w-3.5 shrink-0 text-muted-foreground' />
+            <input
+              type='email'
+              value={typeof v === 'string' ? v : ''}
+              onChange={(e) => updateValue(k, e.target.value)}
+              placeholder='assignee@company.com'
+              title='Assignee email for this component'
+              className='min-w-0 flex-1 rounded-lg border border-border bg-muted/10 px-2 py-1.5 text-xs outline-none focus:border-primary/50'
+            />
+            {k !== '_default' && (
+              <button
+                type='button'
+                onClick={() => removeRow(k)}
+                title='Remove this routing rule'
+                className='shrink-0 rounded p-0.5 text-muted-foreground hover:text-red-400'
+              >
+                <Icons.close className='h-3.5 w-3.5' />
+              </button>
+            )}
+          </div>
+        ))}
+        <button
+          type='button'
+          onClick={addRow}
+          className='flex items-center gap-1 text-xs font-medium text-primary hover:underline'
+        >
+          <Icons.plus className='h-3 w-3' />
+          Add component
+        </button>
+      </div>
     )
   }
 
