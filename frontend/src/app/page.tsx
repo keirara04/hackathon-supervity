@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, memo } from 'react'
+import { useState, useRef, useEffect, memo, type ElementType } from 'react'
 import dynamic from 'next/dynamic'
 import { motion, useInView } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -196,7 +196,17 @@ function HeroSection({ userName }: { userName?: string }) {
   )
 }
 
-function DepartmentBreakdown({ data }: { data: Record<string, number> }) {
+function BreakdownCard({
+  title,
+  icon: Icon,
+  data,
+  emptyHint,
+}: {
+  title: string
+  icon: ElementType
+  data: Record<string, number>
+  emptyHint?: string
+}) {
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1])
   const max = Math.max(...entries.map(([, v]) => v), 1)
 
@@ -204,16 +214,18 @@ function DepartmentBreakdown({ data }: { data: Record<string, number> }) {
     <Card>
       <CardHeader>
         <CardTitle className='flex items-center gap-2'>
-          <Icons.users className='h-5 w-5 text-brand-cornflower' strokeWidth={1.5} />
-          Tickets by Department
+          <Icon className='h-5 w-5 text-brand-cornflower' strokeWidth={1.5} />
+          {title}
         </CardTitle>
       </CardHeader>
       <CardContent className='space-y-3'>
-        {entries.length === 0 && <p className='text-sm text-muted-foreground'>No data yet</p>}
-        {entries.map(([dept, count]) => (
-          <div key={dept}>
+        {entries.length === 0 && (
+          <p className='text-sm text-muted-foreground'>{emptyHint ?? 'No data yet'}</p>
+        )}
+        {entries.map(([key, count]) => (
+          <div key={key}>
             <div className='mb-1 flex items-center justify-between text-xs'>
-              <span className='font-medium'>{dept}</span>
+              <span className='font-medium capitalize'>{key}</span>
               <span className='text-muted-foreground'>{count}</span>
             </div>
             <div className='h-2 w-full overflow-hidden rounded-full bg-muted/30'>
@@ -303,8 +315,18 @@ export default function HomePage() {
           <motion.div variants={itemVariants} className='lg:col-span-2'>
             <VolumeChart data={kpis?.volume_by_day ?? []} />
           </motion.div>
-          <motion.div variants={itemVariants}>
-            <DepartmentBreakdown data={kpis?.department_breakdown ?? {}} />
+          <motion.div variants={itemVariants} className='space-y-6'>
+            <BreakdownCard
+              title='Tickets by Department'
+              icon={Icons.users}
+              data={kpis?.department_breakdown ?? {}}
+            />
+            <BreakdownCard
+              title='Tickets by Channel'
+              icon={Icons.inbox}
+              data={kpis?.channel_breakdown ?? {}}
+              emptyHint='No channel data recorded on tickets yet'
+            />
           </motion.div>
         </div>
 

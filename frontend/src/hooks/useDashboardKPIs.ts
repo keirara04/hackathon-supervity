@@ -13,6 +13,7 @@ export interface DashboardKPIs {
   vip_ticket_count: number
   volume_by_day: { date: string; count: number }[]
   department_breakdown: Record<string, number>
+  channel_breakdown: Record<string, number>
   computed_at: string
 }
 

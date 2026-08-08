@@ -7,7 +7,7 @@ tickets), that metric is reported as null rather than faked.
 
 import logging
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
@@ -24,7 +24,7 @@ async def get_kpis(limit: int = 1000):
         runs = await sb_get(
             "run_log",
             {
-                "select": "path,verdict,sla_state_before,mttr_minutes,entered_at,resolved_at,department,is_vip",
+                "select": "path,verdict,sla_state_before,mttr_minutes,entered_at,resolved_at,department,is_vip,source_channel",
                 "order": "entered_at.desc",
                 "limit": str(limit),
             },
@@ -64,6 +64,9 @@ async def get_kpis(limit: int = 1000):
     trend = [{"date": d, "count": c} for d, c in sorted(volume_by_day.items())]
 
     dept_counts = Counter(r.get("department") for r in runs if r.get("department"))
+    channel_counts = Counter(
+        r.get("source_channel") for r in runs if r.get("source_channel")
+    )
 
     return {
         "total_tickets": total,
@@ -75,5 +78,6 @@ async def get_kpis(limit: int = 1000):
         "vip_ticket_count": vip_count,
         "volume_by_day": trend,
         "department_breakdown": dict(dept_counts),
-        "computed_at": datetime.utcnow().isoformat(),
+        "channel_breakdown": dict(channel_counts),
+        "computed_at": datetime.now(timezone.utc).isoformat(),
     }
