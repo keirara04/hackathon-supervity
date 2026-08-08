@@ -227,7 +227,10 @@ async def _tool_trigger_orchestrator_run(args: dict) -> dict:
             "status": "triggered",
             "workflow_run_id": workflow_run_id,
             "slack_channel_swept": AUTO_SLACK_CHANNEL,
-            "note": "Run started in the background — full completion takes minutes. Check run_log/Workbench for progress, not this response.",
+            "note": (
+                "Run started in the background — full completion takes minutes. "
+                "Check run_log/Workbench for progress, not this response."
+            ),
         }
     except Exception as e:  # noqa: BLE001
         return {"status": "error", "detail": str(e)}
