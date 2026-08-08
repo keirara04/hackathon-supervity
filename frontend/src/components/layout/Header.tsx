@@ -271,10 +271,6 @@ export function Header({ onOpenMobileMenu }: HeaderProps) {
             </React.Fragment>
           ))}
         </nav>
-        {/* Mobile: Just show current page */}
-        <span className='text-sm font-medium text-foreground sm:hidden'>
-          {breadcrumbs[breadcrumbs.length - 1].label}
-        </span>
       </div>
 
       {/* Right: Actions */}
