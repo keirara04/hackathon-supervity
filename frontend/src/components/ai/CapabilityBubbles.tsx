@@ -10,13 +10,16 @@ interface Capability {
   query: string
 }
 
+// Every prompt here maps to a real backend tool (app/routers/ai.py
+// TOOL_DESCRIPTIONS) or a no-tool-needed exception (capability/page
+// questions) — never a prompt the model has no way to actually answer.
 const CAPABILITIES: Capability[] = [
   { icon: Icons.helpCircle, label: 'What can you help me with?', query: 'What can you help me with?' },
-  { icon: Icons.activity, label: 'Show recent activity', query: 'Show me recent activity' },
-  { icon: Icons.fileText, label: 'Generate a report', query: 'Generate a report' },
-  { icon: Icons.brain, label: 'Create a policy', query: 'Help me create a new policy' },
-  { icon: Icons.lightbulb, label: 'Show insights', query: 'Show me AI insights' },
   { icon: Icons.info, label: 'Explain this page', query: 'Explain this page to me' },
+  { icon: Icons.dashboard, label: 'Show dashboard KPIs', query: 'Show me the live dashboard KPIs' },
+  { icon: Icons.workbench, label: "What's in Workbench?", query: "What's waiting in the Workbench queue?" },
+  { icon: Icons.activity, label: 'Check system health', query: 'Check system health' },
+  { icon: Icons.clock, label: 'Recent policy evaluations', query: 'Show recent policy evaluations' },
 ]
 
 interface CapabilityBubblesProps {

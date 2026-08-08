@@ -58,6 +58,7 @@ export function AIManager() {
   const {
     isManagerOpen,
     closeManager,
+    toggleManager,
     chatHistory,
     addMessage,
     clearHistory,
@@ -83,18 +84,31 @@ export function AIManager() {
         closeManager()
       }
     }
-    
+
     if (isManagerOpen) {
       document.addEventListener('keydown', handleKeyDown)
       // Prevent body scroll when modal is open
       document.body.style.overflow = 'hidden'
     }
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = ''
     }
   }, [isManagerOpen, closeManager])
+
+  // Cmd/Ctrl+J toggles the manager from anywhere — matches the header hint
+  // (same precedent as CommandPalette's real Cmd+K listener).
+  useEffect(() => {
+    const handleToggleShortcut = (e: KeyboardEvent) => {
+      if (e.key === 'j' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        toggleManager()
+      }
+    }
+    document.addEventListener('keydown', handleToggleShortcut)
+    return () => document.removeEventListener('keydown', handleToggleShortcut)
+  }, [toggleManager])
 
   // Focus trap - focus the modal when it opens
   useEffect(() => {

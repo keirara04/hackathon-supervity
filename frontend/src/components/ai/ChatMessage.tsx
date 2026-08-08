@@ -1,10 +1,40 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { Icons } from '@/components/ui/icons'
 import { Avatar } from '@/components/ui/avatar'
 import type { ChatMessage as ChatMessageType } from '@/context/AIContext'
+
+const LOADING_PHRASES = [
+  { afterMs: 0, text: 'Thinking...' },
+  { afterMs: 2500, text: 'Digging through your data...' },
+  { afterMs: 6000, text: 'Still working on it — almost there...' },
+]
+
+// The backend call is one blocking request (up to 4 tool-call iterations
+// server-side, not streamed), so the frontend genuinely doesn't know which
+// tool is running — these phrases are time-based reassurance, not fake
+// progress claims about a specific action.
+function useLoadingPhrase(active: boolean): string {
+  const [phrase, setPhrase] = useState(LOADING_PHRASES[0].text)
+
+  useEffect(() => {
+    if (!active) {
+      setPhrase(LOADING_PHRASES[0].text)
+      return
+    }
+    const start = Date.now()
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - start
+      const current = [...LOADING_PHRASES].reverse().find((p) => elapsed >= p.afterMs)
+      if (current) setPhrase(current.text)
+    }, 500)
+    return () => clearInterval(interval)
+  }, [active])
+
+  return phrase
+}
 
 interface ChatMessageProps {
   message: ChatMessageType
@@ -152,6 +182,7 @@ function MarkdownContent({ content }: { content: string }) {
 export function ChatMessage({ message, userName, userImage }: ChatMessageProps) {
   const isUser = message.role === 'user'
   const isLoading = message.isLoading
+  const loadingPhrase = useLoadingPhrase(Boolean(isLoading))
 
   return (
     <div
@@ -190,8 +221,7 @@ export function ChatMessage({ message, userName, userImage }: ChatMessageProps) 
             'transition-all duration-200',
             isUser
               ? 'bg-brand-navy text-white rounded-br-md'
-              : 'bg-white/90 text-foreground border border-border/50 rounded-bl-md shadow-soft',
-            isLoading && 'animate-pulse'
+              : 'bg-white/90 text-foreground border border-border/50 rounded-bl-md shadow-soft'
           )}
         >
           {isLoading ? (
@@ -201,7 +231,7 @@ export function ChatMessage({ message, userName, userImage }: ChatMessageProps) 
                 <span className="h-2 w-2 animate-bounce rounded-full bg-brand-muted/60" style={{ animationDelay: '150ms' }} />
                 <span className="h-2 w-2 animate-bounce rounded-full bg-brand-muted/60" style={{ animationDelay: '300ms' }} />
               </div>
-              <span className="text-sm text-brand-muted">Thinking...</span>
+              <span className="text-sm text-brand-muted transition-opacity duration-300">{loadingPhrase}</span>
             </div>
           ) : isUser ? (
             <p className="text-sm whitespace-pre-wrap leading-relaxed">
