@@ -136,8 +136,8 @@ export default function ZendeskTicketsPage() {
             {includeSolved ? 'total' : 'unresolved, matching the Sweep query'}.
           </p>
         </div>
-        <div className='flex items-center gap-3'>
-          <label className='flex items-center gap-2 text-sm text-muted-foreground'>
+        <div className='flex flex-wrap items-center justify-end gap-3'>
+          <label className='flex items-center gap-2 whitespace-nowrap text-sm text-muted-foreground'>
             <input
               type='checkbox'
               checked={includeSolved}

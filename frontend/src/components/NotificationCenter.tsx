@@ -303,7 +303,7 @@ export function NotificationCenter() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align='end' className='w-[420px] p-0'>
+      <PopoverContent align='end' className='w-[calc(100vw-2rem)] max-w-[420px] p-0'>
         {/* Header */}
         <div className='flex items-center justify-between border-b border-border/50 px-5 py-4'>
           <div>
