@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Icons } from '@/components/ui/icons'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { formatTimestamp } from '@/lib/format'
 import { apiClient } from '@/lib/api-client'
@@ -141,6 +142,7 @@ export default function WorkbenchPage() {
   const { tasks, history, loading, error: loadError, reload } = useWorkbenchQueue()
   const [tab, setTab] = useState<'queue' | 'history'>('queue')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [historyDetail, setHistoryDetail] = useState<WorkbenchTask | null>(null)
   const [deciding, setDeciding] = useState(false)
   const [decideError, setDecideError] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
@@ -567,7 +569,12 @@ export default function WorkbenchPage() {
           <Card>
             <CardContent className='divide-y divide-border pt-6'>
               {history.map((task) => (
-                <div key={task.task_id} className='flex items-start justify-between gap-4 py-3'>
+                <button
+                  key={task.task_id}
+                  type='button'
+                  onClick={() => setHistoryDetail(task)}
+                  className='flex w-full items-start justify-between gap-4 py-3 text-left transition-colors hover:bg-muted/10'
+                >
                   <div>
                     <div className='flex items-center gap-2'>
                       <span className='font-medium text-sm'>{task.task_id}</span>
@@ -588,12 +595,79 @@ export default function WorkbenchPage() {
                     <p>{task.resolved_by}</p>
                     <p>{formatTimestamp(task.decided_at)}</p>
                   </div>
-                </div>
+                </button>
               ))}
             </CardContent>
           </Card>
         </motion.div>
       )}
+
+      <Dialog open={historyDetail !== null} onOpenChange={(open) => !open && setHistoryDetail(null)}>
+        <DialogContent>
+          {historyDetail && (
+            <>
+              <DialogHeader>
+                <DialogTitle className='flex items-center gap-2'>
+                  {historyDetail.task_id}
+                  <span
+                    className={cn(
+                      'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                      DECISION_STYLES[historyDetail.human_decision ?? ''] ?? 'bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {DECISION_LABEL[historyDetail.human_decision ?? ''] ?? historyDetail.status}
+                  </span>
+                  {historyDetail.enrichment?.is_vip && (
+                    <span className='rounded-full bg-brand-purple/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-brand-purple'>
+                      VIP
+                    </span>
+                  )}
+                </DialogTitle>
+                <DialogDescription>
+                  {contextValue(historyDetail.context, 'resolved_customer_name')} ·{' '}
+                  {contextValue(historyDetail.context, 'escalation_reason')}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className='space-y-4 text-sm'>
+                {historyDetail.recommendation && (
+                  <div>
+                    <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>Recommendation</p>
+                    <p className='mt-1'>{historyDetail.recommendation}</p>
+                  </div>
+                )}
+
+                {policyHits(historyDetail.context).length > 0 && (
+                  <div>
+                    <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>Policy hits</p>
+                    <div className='mt-1.5 flex flex-wrap gap-1'>
+                      {policyHits(historyDetail.context).map((hit) => (
+                        <span key={hit} className='rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground'>
+                          {hit}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className='grid grid-cols-2 gap-3 text-xs text-muted-foreground'>
+                  <p><span className='font-semibold text-foreground'>Task type:</span> {historyDetail.task_type}</p>
+                  <p><span className='font-semibold text-foreground'>Ticket:</span> {historyDetail.ticket_id ?? '—'}</p>
+                  <p><span className='font-semibold text-foreground'>Department:</span> {historyDetail.enrichment?.department ?? '—'}</p>
+                  <p><span className='font-semibold text-foreground'>SLA at intake:</span> {historyDetail.enrichment?.sla_state_before ?? '—'}</p>
+                  <p><span className='font-semibold text-foreground'>Assigned to:</span> {historyDetail.assigned_to ?? '—'}</p>
+                  <p><span className='font-semibold text-foreground'>Resolved by:</span> {historyDetail.resolved_by ?? '—'}</p>
+                  <p><span className='font-semibold text-foreground'>Created:</span> {formatTimestamp(historyDetail.created_at)}</p>
+                  <p><span className='font-semibold text-foreground'>Decided:</span> {formatTimestamp(historyDetail.decided_at)}</p>
+                  {historyDetail.run_id && (
+                    <p className='col-span-2'><span className='font-semibold text-foreground'>Run:</span> {historyDetail.run_id}</p>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }

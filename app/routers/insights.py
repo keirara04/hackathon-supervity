@@ -55,6 +55,7 @@ async def _fetch_source_rows(limit: int = 500):
                     "select": "path,mttr_minutes,sla_state_before,department,category,entered_at",
                     "order": "entered_at.desc",
                     "limit": str(limit),
+                    "ticket_id": "neq.RUN_SUMMARY",
                 },
             ),
             sb_get(
@@ -464,6 +465,7 @@ async def diagnose_insight(req: DiagnoseRequest):
                     "select": "path,mttr_minutes,sla_state_before,department,category,entered_at",
                     "order": "entered_at.desc",
                     "limit": "50",
+                    "ticket_id": "neq.RUN_SUMMARY",
                 },
             ),
         )

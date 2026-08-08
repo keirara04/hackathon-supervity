@@ -37,7 +37,11 @@ async def list_tickets(
     run_id: str | None = None,
     limit: int = 100,
 ):
-    params: dict = {"order": "entered_at.desc", "limit": str(limit)}
+    params: dict = {
+        "order": "entered_at.desc",
+        "limit": str(limit),
+        "ticket_id": "neq.RUN_SUMMARY",
+    }
     if path:
         params["path"] = f"eq.{path}"
     if department:
