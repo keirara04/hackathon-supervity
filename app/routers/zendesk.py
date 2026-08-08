@@ -35,7 +35,8 @@ ALL_STATUSES_QUERY = "type:ticket -tags:aiden_processed"
 
 async def _fetch_tickets(
     include_solved: bool = False,
-) -> tuple[list[dict], dict[str, dict]]:
+    page: int = 1,
+) -> tuple[list[dict], dict[str, dict], int]:
     async with httpx.AsyncClient(timeout=15.0) as client:
         token = await get_zendesk_token(client)
         if not token:
@@ -44,7 +45,10 @@ async def _fetch_tickets(
 
         search_resp = await client.get(
             f"https://{ZENDESK_SUBDOMAIN}.zendesk.com/api/v2/search.json",
-            params={"query": ALL_STATUSES_QUERY if include_solved else SWEEP_QUERY},
+            params={
+                "query": ALL_STATUSES_QUERY if include_solved else SWEEP_QUERY,
+                "page": str(page),
+            },
             headers=headers,
         )
         if search_resp.status_code >= 300:
@@ -52,7 +56,9 @@ async def _fetch_tickets(
                 status_code=502,
                 detail=f"Zendesk search failed: HTTP {search_resp.status_code}",
             )
-        results = search_resp.json().get("results", [])
+        search_json = search_resp.json()
+        results = search_json.get("results", [])
+        total_count = search_json.get("count", len(results))
 
         requester_ids = sorted(
             {str(t["requester_id"]) for t in results if t.get("requester_id")}
@@ -71,17 +77,17 @@ async def _fetch_tickets(
                         "email": u.get("email"),
                     }
 
-    return results, identities
+    return results, identities, total_count
 
 
 @router.get("/tickets")
-async def list_tickets(include_solved: bool = False):
+async def list_tickets(include_solved: bool = False, page: int = 1):
     if not zendesk_configured():
         raise HTTPException(
             status_code=503, detail="Zendesk credentials not set in backend .env"
         )
 
-    results, identities = await _fetch_tickets(include_solved)
+    results, identities, total_count = await _fetch_tickets(include_solved, page)
     issue_keys = [str(t["id"]) for t in results]
 
     queued_map: dict[str, str] = {}
@@ -121,7 +127,14 @@ async def list_tickets(include_solved: bool = False):
             }
         )
 
-    return {"tickets": tickets, "count": len(tickets)}
+    per_page = 100  # Zendesk search.json's fixed page size
+    return {
+        "tickets": tickets,
+        "count": len(tickets),
+        "total_count": total_count,
+        "page": page,
+        "total_pages": max(1, -(-total_count // per_page)),  # ceil div
+    }
 
 
 class TicketOverride(BaseModel):
@@ -144,8 +157,46 @@ async def import_tickets(body: ImportRequest):
     if not body.tickets:
         raise HTTPException(status_code=400, detail="No tickets provided")
 
-    results, identities = await _fetch_tickets()
-    by_id = {t["id"]: t for t in results}
+    # Look tickets up directly by ID (not via a fresh search) — the frontend
+    # is now paginated, so a selected ticket may be on any page. A direct
+    # bulk lookup is page-independent and works regardless of which page it
+    # was selected from.
+    requested_ids = [str(o.ticket_id) for o in body.tickets]
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        token = await get_zendesk_token(client)
+        if not token:
+            raise HTTPException(status_code=503, detail="Zendesk token exchange failed")
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+        tickets_resp = await client.get(
+            f"https://{ZENDESK_SUBDOMAIN}.zendesk.com/api/v2/tickets/show_many.json",
+            params={"ids": ",".join(requested_ids)},
+            headers=headers,
+        )
+        if tickets_resp.status_code >= 300:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Zendesk lookup failed: HTTP {tickets_resp.status_code}",
+            )
+        results = tickets_resp.json().get("tickets", [])
+        by_id = {t["id"]: t for t in results}
+
+        requester_ids = sorted(
+            {str(t["requester_id"]) for t in results if t.get("requester_id")}
+        )
+        identities: dict[str, dict] = {}
+        if requester_ids:
+            users_resp = await client.get(
+                f"https://{ZENDESK_SUBDOMAIN}.zendesk.com/api/v2/users/show_many.json",
+                params={"ids": ",".join(requester_ids)},
+                headers=headers,
+            )
+            if users_resp.status_code < 300:
+                for u in users_resp.json().get("users", []):
+                    identities[str(u["id"])] = {
+                        "name": u.get("name"),
+                        "email": u.get("email"),
+                    }
 
     requested_keys = [str(o.ticket_id) for o in body.tickets]
     try:
@@ -167,7 +218,7 @@ async def import_tickets(body: ImportRequest):
                 {
                     "issue_key": issue_key,
                     "action": "error",
-                    "detail": "Ticket not found in current unresolved Zendesk results (may already be solved)",
+                    "detail": "Ticket not found in Zendesk (may have been deleted)",
                 }
             )
             continue

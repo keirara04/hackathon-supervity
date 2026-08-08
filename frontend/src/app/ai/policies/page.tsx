@@ -60,6 +60,13 @@ interface AuditEntry {
   changes: AuditChange[]
 }
 
+interface RosterAgent {
+  agent_name: string
+  agent_email: string | null
+  team: string | null
+  component: string | null
+}
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: { opacity: 1, transition: { staggerChildren: 0.06 } },
@@ -115,78 +122,9 @@ function LeverControl({
     )
   }
 
-  if (lever.type === 'object') {
-    const obj = (typeof value === 'object' && value !== null ? value : {}) as Record<string, string>
-    const entries = Object.entries(obj)
-
-    const updateValue = (key: string, val: string) => onChange({ ...obj, [key]: val })
-
-    const renameKey = (oldKey: string, newKey: string) => {
-      newKey = newKey.trim()
-      if (!newKey || newKey === oldKey || newKey in obj) return
-      const next: Record<string, string> = {}
-      for (const [k, v] of Object.entries(obj)) next[k === oldKey ? newKey : k] = v
-      onChange(next)
-    }
-
-    const removeRow = (key: string) => {
-      const next = { ...obj }
-      delete next[key]
-      onChange(next)
-    }
-
-    const addRow = () => {
-      let newKey = 'component'
-      let i = 1
-      while (newKey in obj) newKey = `component_${i++}`
-      onChange({ ...obj, [newKey]: '' })
-    }
-
-    return (
-      <div className='w-full space-y-1.5 sm:w-80'>
-        {entries.map(([k, v]) => (
-          <div key={k} className='flex items-center gap-1.5'>
-            <input
-              type='text'
-              defaultValue={k === '_default' ? 'default (fallback)' : k}
-              disabled={k === '_default'}
-              onBlur={(e) => renameKey(k, e.target.value)}
-              placeholder='component'
-              title='Ticket component this routes'
-              className='w-32 shrink-0 rounded-lg border border-border bg-muted/10 px-2 py-1.5 text-xs capitalize outline-none focus:border-primary/50 disabled:opacity-60'
-            />
-            <Icons.chevronRight className='h-3.5 w-3.5 shrink-0 text-muted-foreground' />
-            <input
-              type='email'
-              value={typeof v === 'string' ? v : ''}
-              onChange={(e) => updateValue(k, e.target.value)}
-              placeholder='assignee@company.com'
-              title='Assignee email for this component'
-              className='min-w-0 flex-1 rounded-lg border border-border bg-muted/10 px-2 py-1.5 text-xs outline-none focus:border-primary/50'
-            />
-            {k !== '_default' && (
-              <button
-                type='button'
-                onClick={() => removeRow(k)}
-                title='Remove this routing rule'
-                className='shrink-0 rounded p-0.5 text-muted-foreground hover:text-red-400'
-              >
-                <Icons.close className='h-3.5 w-3.5' />
-              </button>
-            )}
-          </div>
-        ))}
-        <button
-          type='button'
-          onClick={addRow}
-          className='flex items-center gap-1 text-xs font-medium text-primary hover:underline'
-        >
-          <Icons.plus className='h-3 w-3' />
-          Add component
-        </button>
-      </div>
-    )
-  }
+  // Object-type levers get their own dedicated section (AssignmentRoutingCard
+  // below) rather than being crammed into this generic list — assignment_routing
+  // is the only one today, so nothing else falls through this branch.
 
   return (
     <input
@@ -195,6 +133,188 @@ function LeverControl({
       onChange={(e) => onChange(e.target.value)}
       className='w-full rounded-lg border border-border bg-muted/10 px-3 py-1.5 text-sm outline-none focus:border-primary/50 sm:w-72'
     />
+  )
+}
+
+function AssignmentRoutingCard({
+  lever,
+  value,
+  onChange,
+  isDirty,
+  highlighted,
+  roster,
+}: {
+  lever: Lever
+  value: PolicyValue
+  onChange: (v: PolicyValue) => void
+  isDirty: boolean
+  highlighted: boolean
+  roster: RosterAgent[]
+}) {
+  const obj = (typeof value === 'object' && value !== null ? value : {}) as Record<string, string>
+  const entries = Object.entries(obj)
+  const componentRows = entries.filter(([k]) => k !== '_default')
+  const defaultEntry = entries.find(([k]) => k === '_default')
+
+  const updateValue = (key: string, val: string) => onChange({ ...obj, [key]: val })
+
+  const renameKey = (oldKey: string, newKey: string) => {
+    newKey = newKey.trim()
+    if (!newKey || newKey === oldKey || newKey in obj) return
+    const next: Record<string, string> = {}
+    for (const [k, v] of Object.entries(obj)) next[k === oldKey ? newKey : k] = v
+    onChange(next)
+  }
+
+  const removeRow = (key: string) => {
+    const next = { ...obj }
+    delete next[key]
+    onChange(next)
+  }
+
+  const addRow = () => {
+    let newKey = 'component'
+    let i = 1
+    while (newKey in obj) newKey = `component_${i++}`
+    onChange({ ...obj, [newKey]: '' })
+  }
+
+  const rosterComponents = Array.from(new Set(roster.map((a) => a.component).filter(Boolean))) as string[]
+  const rosterEmails = roster.filter((a) => a.agent_email)
+  const rosterHasAnyEmail = rosterEmails.length > 0
+
+  function resolveAgent(email: string): RosterAgent | undefined {
+    if (!email) return undefined
+    return roster.find((a) => a.agent_email?.toLowerCase() === email.toLowerCase())
+  }
+
+  const matchedCount = componentRows.filter(([, email]) => resolveAgent(email)).length
+
+  return (
+    <motion.div variants={itemVariants} id={`lever-${lever.key}`}>
+      <Card
+        className={cn(
+          isDirty && 'ring-1 ring-primary/40',
+          highlighted && 'ring-2 ring-brand-cornflower/50'
+        )}
+      >
+        <CardHeader>
+          <div className='flex items-center gap-2'>
+            <CardTitle>{lever.label}</CardTitle>
+            {isDirty && (
+              <span className='rounded-full bg-primary/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-primary'>
+                unsaved
+              </span>
+            )}
+          </div>
+          <CardDescription>
+            {componentRows.length} routing rule{componentRows.length === 1 ? '' : 's'} · {matchedCount} matched to a real Team Roster agent
+          </CardDescription>
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          {!rosterHasAnyEmail && (
+            <div className='flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-600'>
+              <Icons.alertTriangle className='mt-0.5 h-3.5 w-3.5 shrink-0' />
+              <span>No Team Roster agents have an email on file yet — add emails there to enable routing matches.</span>
+            </div>
+          )}
+
+          <datalist id='roster-components'>
+            {rosterComponents.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+          <datalist id='roster-agents-emails'>
+            {rosterEmails.map((a) => (
+              <option key={a.agent_email} value={a.agent_email ?? ''} label={`${a.agent_name} — ${a.team ?? 'no team'}`} />
+            ))}
+          </datalist>
+
+          <div className='space-y-3'>
+            {componentRows.map(([k, v]) => {
+              const matched = resolveAgent(v)
+              return (
+                <div key={k} className='rounded-lg border border-border p-3'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <div className='flex-1'>
+                      <label className='text-[10px] font-semibold uppercase tracking-wide text-muted-foreground'>Component</label>
+                      <input
+                        type='text'
+                        defaultValue={k}
+                        onBlur={(e) => renameKey(k, e.target.value)}
+                        placeholder='component'
+                        title='Ticket component this routes'
+                        list='roster-components'
+                        className='mt-1 w-full rounded-lg border border-border bg-muted/10 px-2 py-1.5 text-sm capitalize outline-none focus:border-primary/50'
+                      />
+                    </div>
+                    <Icons.chevronRight className='mt-4 h-4 w-4 shrink-0 text-muted-foreground' />
+                    <div className='flex-1'>
+                      <label className='text-[10px] font-semibold uppercase tracking-wide text-muted-foreground'>Assignee email</label>
+                      <input
+                        type='email'
+                        value={v}
+                        onChange={(e) => updateValue(k, e.target.value)}
+                        placeholder='assignee@company.com'
+                        title='Assignee email for this component'
+                        list='roster-agents-emails'
+                        className='mt-1 w-full rounded-lg border border-border bg-muted/10 px-2 py-1.5 text-sm outline-none focus:border-primary/50'
+                      />
+                    </div>
+                    <button
+                      type='button'
+                      onClick={() => removeRow(k)}
+                      title='Remove this routing rule'
+                      className='mt-4 shrink-0 rounded p-1 text-muted-foreground hover:text-red-400'
+                    >
+                      <Icons.close className='h-4 w-4' />
+                    </button>
+                  </div>
+                  <div className='mt-2'>
+                    {matched ? (
+                      <span className='inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-500'>
+                        <Icons.checkCircle className='h-3 w-3' />
+                        {matched.agent_name} — {matched.team ?? 'no team'}
+                      </span>
+                    ) : (
+                      <span className='inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-600'>
+                        <Icons.alertTriangle className='h-3 w-3' />
+                        Not on roster
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <button
+            type='button'
+            onClick={addRow}
+            className='flex items-center gap-1 text-xs font-medium text-primary hover:underline'
+          >
+            <Icons.plus className='h-3 w-3' />
+            Add component
+          </button>
+
+          {defaultEntry && (
+            <div className='border-t border-border pt-3'>
+              <div className='flex items-center gap-2'>
+                <span className='text-[10px] font-semibold uppercase tracking-wide text-muted-foreground'>Default (fallback)</span>
+                <span className='text-[10px] text-muted-foreground'>used when no component rule matches</span>
+              </div>
+              <input
+                type='email'
+                value={defaultEntry[1]}
+                onChange={(e) => updateValue('_default', e.target.value)}
+                placeholder='assignee@company.com'
+                className='mt-1.5 w-full rounded-lg border border-border bg-muted/10 px-2 py-1.5 text-sm outline-none focus:border-primary/50 sm:w-80'
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
   )
 }
 
@@ -218,6 +338,7 @@ function PoliciesPageInner() {
   const [draft, setDraft] = useState<Record<string, PolicyValue>>({})
   const [log, setLog] = useState<EvalLogRow[]>([])
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([])
+  const [roster, setRoster] = useState<RosterAgent[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -230,16 +351,18 @@ function PoliciesPageInner() {
     setLoading(true)
     setError(null)
     try {
-      const [schemaRes, policyRes, logRes, auditRes] = await Promise.all([
+      const [schemaRes, policyRes, logRes, auditRes, rosterRes] = await Promise.all([
         apiClient.get<{ levers: Lever[] }>('/api/policies/schema'),
         apiClient.get<PolicyConfig>('/api/policies'),
         apiClient.get<{ log: EvalLogRow[] }>('/api/policies/log?limit=50'),
         apiClient.get<{ entries: AuditEntry[] }>('/api/policies/audit?limit=50'),
+        apiClient.get<{ agents: RosterAgent[] }>('/api/team-roster'),
       ])
       setLevers(schemaRes.levers)
       setPolicy(policyRes)
       setLog(logRes.log)
       setAuditEntries(auditRes.entries.filter((e) => e.changes.length > 0))
+      setRoster(rosterRes.agents)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load policies')
     } finally {
@@ -342,43 +465,60 @@ function PoliciesPageInner() {
               <p className='py-8 text-center text-sm text-muted-foreground'>Loading...</p>
             ) : (
               <div className='divide-y divide-border'>
-                {levers.map((lever) => {
-                  const current = draft[lever.key] ?? (policy?.[lever.key] as PolicyValue)
-                  const isDirty = lever.key in draft
-                  return (
-                    <div
-                      key={lever.key}
-                      id={`lever-${lever.key}`}
-                      className={cn(
-                        'flex flex-wrap items-center justify-between gap-4 py-4',
-                        isDirty && 'rounded-lg bg-primary/5 px-3',
-                        highlight === lever.key && 'rounded-lg bg-brand-cornflower/10 px-3 ring-2 ring-brand-cornflower/50'
-                      )}
-                    >
-                      <div>
-                        <p className='text-sm font-medium'>{lever.label}</p>
-                        <p className='text-xs text-muted-foreground'>{lever.key}</p>
-                      </div>
-                      <div className='flex items-center gap-2'>
-                        {isDirty && (
-                          <span className='rounded-full bg-primary/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-primary'>
-                            unsaved
-                          </span>
+                {levers
+                  .filter((lever) => lever.type !== 'object')
+                  .map((lever) => {
+                    const current = draft[lever.key] ?? (policy?.[lever.key] as PolicyValue)
+                    const isDirty = lever.key in draft
+                    return (
+                      <div
+                        key={lever.key}
+                        id={`lever-${lever.key}`}
+                        className={cn(
+                          'flex flex-wrap items-center justify-between gap-4 py-4',
+                          isDirty && 'rounded-lg bg-primary/5 px-3',
+                          highlight === lever.key && 'rounded-lg bg-brand-cornflower/10 px-3 ring-2 ring-brand-cornflower/50'
                         )}
-                        <LeverControl
-                          lever={lever}
-                          value={current}
-                          onChange={(v) => setField(lever.key, v)}
-                        />
+                      >
+                        <div>
+                          <p className='text-sm font-medium'>{lever.label}</p>
+                          <p className='text-xs text-muted-foreground'>{lever.key}</p>
+                        </div>
+                        <div className='flex items-center gap-2'>
+                          {isDirty && (
+                            <span className='rounded-full bg-primary/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-primary'>
+                              unsaved
+                            </span>
+                          )}
+                          <LeverControl
+                            lever={lever}
+                            value={current}
+                            onChange={(v) => setField(lever.key, v)}
+                          />
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
               </div>
             )}
           </CardContent>
         </Card>
       </motion.div>
+
+      {!loading &&
+        levers
+          .filter((lever) => lever.type === 'object')
+          .map((lever) => (
+            <AssignmentRoutingCard
+              key={lever.key}
+              lever={lever}
+              value={draft[lever.key] ?? (policy?.[lever.key] as PolicyValue)}
+              onChange={(v) => setField(lever.key, v)}
+              isDirty={lever.key in draft}
+              highlighted={highlight === lever.key}
+              roster={roster}
+            />
+          ))}
 
       <motion.div variants={itemVariants}>
         <Card>

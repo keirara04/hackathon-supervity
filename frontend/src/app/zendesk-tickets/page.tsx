@@ -64,20 +64,29 @@ export default function ZendeskTicketsPage() {
   const [results, setResults] = useState<Record<string, ImportResult>>({})
   const [detailTicket, setDetailTicket] = useState<ZendeskTicket | null>(null)
   const [includeSolved, setIncludeSolved] = useState(false)
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
 
   const { query, setQuery, filtered: visibleTickets } = useSearchFilter(
     tickets,
     (t) => `${t.subject} ${t.requester_name ?? ''} ${t.issue_key} ${t.tags.join(' ')}`
   )
 
-  const load = useCallback(async (solved: boolean) => {
+  const load = useCallback(async (solved: boolean, pageNum: number) => {
     setLoading(true)
     setError(null)
     try {
-      const res = await apiClient.get<{ tickets: ZendeskTicket[]; count: number }>(
-        `/api/zendesk/tickets?include_solved=${solved}`
-      )
+      const res = await apiClient.get<{
+        tickets: ZendeskTicket[]
+        count: number
+        total_count: number
+        page: number
+        total_pages: number
+      }>(`/api/zendesk/tickets?include_solved=${solved}&page=${pageNum}`)
       setTickets(res.tickets)
+      setTotalCount(res.total_count)
+      setTotalPages(res.total_pages)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load Zendesk tickets')
     } finally {
@@ -86,8 +95,13 @@ export default function ZendeskTicketsPage() {
   }, [])
 
   useEffect(() => {
-    load(includeSolved)
-  }, [load, includeSolved])
+    load(includeSolved, page)
+  }, [load, includeSolved, page])
+
+  function toggleIncludeSolved(checked: boolean) {
+    setIncludeSolved(checked)
+    setPage(1) // a page number from one scope isn't meaningful in the other
+  }
 
   function toggleSelect(id: number) {
     setSelected((prev) => {
@@ -118,7 +132,7 @@ export default function ZendeskTicketsPage() {
       res.results.forEach((r) => (resultMap[r.issue_key] = r))
       setResults((prev) => ({ ...prev, ...resultMap }))
       setSelected(new Set())
-      await load(includeSolved)
+      await load(includeSolved, page)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Import failed')
     } finally {
@@ -132,8 +146,9 @@ export default function ZendeskTicketsPage() {
         <div>
           <h1 className='text-display-3 font-bold tracking-tight text-brand-navy'>Zendesk Tickets</h1>
           <p className='mt-2 text-lg text-muted-foreground'>
-            Live tickets from Zendesk — {tickets.length}{' '}
-            {includeSolved ? 'total' : 'unresolved, matching the Sweep query'}.
+            Live tickets from Zendesk — {totalCount}{' '}
+            {includeSolved ? 'total' : 'unresolved, matching the Sweep query'}
+            {totalPages > 1 && ` · page ${page} of ${totalPages}`}.
           </p>
         </div>
         <div className='flex flex-wrap items-center justify-end gap-3'>
@@ -141,7 +156,7 @@ export default function ZendeskTicketsPage() {
             <input
               type='checkbox'
               checked={includeSolved}
-              onChange={(e) => setIncludeSolved(e.target.checked)}
+              onChange={(e) => toggleIncludeSolved(e.target.checked)}
               className='h-4 w-4 rounded border-border accent-primary'
             />
             Show solved/closed
@@ -156,7 +171,7 @@ export default function ZendeskTicketsPage() {
               <span className='hidden sm:inline'>Import selected</span> ({selected.size})
             </Button>
           )}
-          <Button variant='outline' size='sm' onClick={() => load(includeSolved)} disabled={loading}>
+          <Button variant='outline' size='sm' onClick={() => load(includeSolved, page)} disabled={loading}>
             <Icons.refresh className={cn('sm:mr-2 h-4 w-4', loading && 'animate-spin')} />
             <span className='hidden sm:inline'>Refresh</span>
           </Button>
@@ -370,6 +385,32 @@ export default function ZendeskTicketsPage() {
                   <p className='py-8 text-center text-sm text-muted-foreground'>No unresolved tickets found.</p>
                 )}
               </div>
+
+              {totalPages > 1 && (
+                <div className='mt-4 flex items-center justify-between border-t border-border pt-4'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1 || loading}
+                  >
+                    <Icons.chevronLeft className='mr-1 h-4 w-4' />
+                    Back
+                  </Button>
+                  <span className='text-xs text-muted-foreground'>
+                    Page {page} of {totalPages} · {totalCount} tickets
+                  </span>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages || loading}
+                  >
+                    Next
+                    <Icons.chevronRight className='ml-1 h-4 w-4' />
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>

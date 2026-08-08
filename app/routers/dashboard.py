@@ -24,7 +24,10 @@ async def get_kpis(limit: int = 1000):
         runs = await sb_get(
             "run_log",
             {
-                "select": "path,verdict,sla_state_before,mttr_minutes,entered_at,resolved_at,department,is_vip,source_channel",
+                "select": (
+                    "path,verdict,sla_state_before,mttr_minutes,entered_at,"
+                    "resolved_at,department,is_vip,source_channel"
+                ),
                 "order": "entered_at.desc",
                 "limit": str(limit),
                 "ticket_id": "neq.RUN_SUMMARY",
