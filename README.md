@@ -5,7 +5,7 @@ Team: Muhammad Hakeemi (Command Center) + Amsyar Hakimi (Orchestrator + Operator
 
 AIDEN is an AI Employee for an IT service desk: tickets arrive from Zendesk and Outlook, get triaged, diagnosed against a knowledge base, auto-resolved where policy allows, escalated to a human where it doesn't, and rolled up into live metrics — with every policy evaluation and human decision logged for audit.
 
-Round 1 built the resolver (2 Operators, 3 integrations). Round 2 grows it into a governed operation: 6 Operators, 11 live policy levers, a self-learning insights loop, and a full Command Center on top.
+Round 1 built the resolver (2 Operators, 3 integrations). Round 2 grows it into a governed operation: 6 Operators, 12 live policy levers (including object-type routing rules, not just toggles), a self-learning insights loop, and a full Command Center on top.
 
 See the architecture diagram: [`docs/AIDEN_Architecture_Diagram.svg`](docs/AIDEN_Architecture_Diagram.svg)
 
@@ -16,7 +16,7 @@ See the architecture diagram: [`docs/AIDEN_Architecture_Diagram.svg`](docs/AIDEN
 | Layer | What it is | Built on |
 |---|---|---|
 | **1 — Agent Ecosystem** | Orchestrator + 6 Operators (Sweep, Triage, Diagnose & Correlate, Score & Decide, Remediate & Verify, Escalation & Change-Approval Router) that actually process tickets | [auto.supervity.ai](https://auto.supervity.ai) — owned by Amsyar |
-| **2 — Command Center** | Dashboard, AI Policies, AI Insights, Workbench, Data Manager, AI Manager — everything in this repo | FastAPI + Next.js, coded here — owned by Muhammad Hakeemi |
+| **2 — Command Center** | Dashboard, AI Policies, AI Insights, Workbench, Data Manager, AI Manager, plus Incidents, Triage Queue, Run Log, Knowledge Base, Team Roster, Users Directory, and a live Zendesk ticket viewer — everything in this repo | FastAPI + Next.js, coded here — owned by Muhammad Hakeemi |
 
 Business data (`run_log`, `policy_config`, `policy_eval_log`, `workbench_tasks`, `triage_queue`, `kb_articles`, `incidents`, `users_directory`, `assets_access`) lives in **Supabase**, read/written by both layers over PostgREST. This repo's own Postgres/Docker database is only for the template's own auth/audit scaffolding — not where business data lives.
 
@@ -26,7 +26,7 @@ Business data (`run_log`, `policy_config`, `policy_eval_log`, `workbench_tasks`,
 
 | System | Category | Role |
 |---|---|---|
-| **Zendesk** | Channel | Ticket intake + requester replies (OAuth client-credentials → Bearer) |
+| **Zendesk** | Channel | Ticket intake + requester replies (OAuth client-credentials → Bearer). Also live-viewable and manually importable in-repo at `/zendesk-tickets`, mirroring the exact query the Sweep operator uses. |
 | **Outlook** | Channel | Email intake + escalation notices (native Auto integration) |
 | **Supabase** | System of record | Every table above, accessed via raw PostgREST calls from both the Operators and this backend |
 
@@ -39,13 +39,16 @@ All three are pinged live from the **Data Manager** page (`/data-manager`) — s
 | Surface | Route | Status |
 |---|---|---|
 | **Dashboard** | `/` | Live KPIs computed from `run_log` on every load — auto-resolution rate, SLA compliance, MTTR, ticket volume trend, department split. Polls every 15s with a "Live" indicator; nothing seeded. |
-| **AI Policies** | `/ai/policies` | All 11 real levers from `policy_config` (`vip_always_escalate`, `min_auto_score`, `min_kb_confidence`, etc.), schema-driven so new levers need no frontend changes. Edits are batched, saved, and read fresh by the Score & Decide operator on the next run. Every evaluation logged to `policy_eval_log` and shown in an audit table below. |
+| **AI Policies** | `/ai/policies` | 12 real levers from `policy_config` (`vip_always_escalate`, `min_auto_score`, `min_kb_confidence`, plus object-type routing rules like component→team assignment), schema-driven so new levers need no frontend changes. Edits are batched, saved, and read fresh by the Score & Decide operator on the next run. Every evaluation logged to `policy_eval_log` and shown in an audit table below. |
 | **AI Insights** | `/ai/insights` | Computed from `policy_eval_log` + `run_log` + `workbench_tasks` — pattern detection (VIP-driven escalation share, KB gaps, department volume), a volume forecast, and a **self-learning** insight that reads recurring Workbench overrides and offers a one-click "apply this policy fix" action. |
 | **Workbench** | `/workbench` | The human queue — every exception arrives with full context and the AI's recommendation; a person approves, modifies, or rejects. Decision is recorded and feeds the self-learning loop above. |
 | **Data Manager** | `/data-manager` | Live health registry — pings Supabase, Zendesk, and Outlook and reports up/down + what each is used for. |
-| **AI Manager** | chat, top bar | Grounded conversational surface — only answers from live tool calls (dashboard KPIs, workbench queue, policy config, eval log), can trigger an Auto orchestrator run. Never invents a number it can't cite. |
+| **AI Manager** | chat, top bar | Grounded conversational surface — only answers from live tool calls (dashboard KPIs, workbench queue, policy config, eval log), and can trigger a real Auto orchestrator run via the workflow-runs API. |
 | **Incidents** (bonus) | `/incidents` | Major-incident detection built directly in the Command Center: groups `run_log` by `cluster_key`, flags clusters at/above `policy_config.major_incident_threshold`, and declares/links incidents — covers the "30 tickets, one failing system" scenario without waiting on a dedicated Auto operator. |
-| **Triage Queue / Run Log / Knowledge Base** (bonus) | `/triage-queue`, `/run-log`, `/knowledge-base` | Read-only live views into the operators' own working tables, useful for judges to see the pipeline mid-flight. |
+| **Triage Queue** (bonus) | `/triage-queue` | Live queue with deep-linking and status filtering — jump straight to a specific ticket's triage state. |
+| **Run Log / Knowledge Base** (bonus) | `/run-log`, `/knowledge-base` | Read-only live views into the operators' own working tables, useful for judges to see the pipeline mid-flight. |
+| **Team Roster** (bonus) | `/team-roster` | On-call agents and real-time capacity, computed from open `workbench_tasks` assignment counts — backs Escalation routing instead of round-robin. |
+| **Users Directory** (bonus) | `/users-directory` | CRUD view over the identity source (`users_directory`) that Triage resolves every requester against — VIP flags, department, account status. |
 
 ---
 
@@ -55,7 +58,9 @@ All three are pinged live from the **Data Manager** page (`/data-manager`) — s
 
 **Integrations used:** Zendesk (channel), Outlook (channel), Supabase (system of record) — 3 live integrations across 2 categories, all visible and health-checked in Data Manager.
 
-**Human in the loop:** Workbench resolves real exceptions; decisions are auditable and feed back into policy recommendations via the AI Insights self-learning panel.
+**Human in the loop:** Workbench resolves real exceptions, routed by real on-call capacity from Team Roster; decisions are auditable and feed back into policy recommendations via the AI Insights self-learning panel.
+
+**Auto orchestrator wiring:** `AUTO_WORKFLOW_API_KEY` and `AUTO_WORKFLOW_ID` are configured — the AI Manager's trigger tool calls Auto's `workflow-runs/execute/stream` endpoint directly. Demo this live rather than describing it.
 
 ---
 
@@ -83,8 +88,8 @@ cp .env.example .env   # macOS/Linux — Copy-Item .env.example .env on Windows 
 Fill in `.env` with:
 - `SUPABASE_URL` / `SUPABASE_KEY` — the business-data project (`ovtxhlpeixfjyyxqufhw`)
 - `OPENROUTER_API_KEY` — powers the AI Manager chat + AI Insights
-- `AUTO_WORKFLOW_API_KEY` / `AUTO_WORKFLOW_ID` / `AUTO_ORG_ID` — only needed once the Orchestrator trigger button is used from AI Manager; everything else works without it
-- Zendesk credentials — only needed for the Data Manager Zendesk health check to go green
+- `AUTO_WORKFLOW_API_KEY` / `AUTO_WORKFLOW_ID` — wired to Auto's `workflow-runs/execute/stream` endpoint; the Orchestrator trigger button in AI Manager needs these
+- Zendesk credentials — needed for the Data Manager Zendesk health check and the live `/zendesk-tickets` viewer/import
 
 `AUTH_BYPASS=true` (default) skips real auth entirely — the app runs as an automatic "Dev User".
 
@@ -135,9 +140,12 @@ hackathon-supervity/
 │   │   ├── data_manager.py      # Live integration health checks
 │   │   ├── ai.py                # AI Manager chat + Auto orchestrator trigger
 │   │   ├── incidents.py         # Major-incident detection (cluster_key correlation)
-│   │   ├── triage_queue.py      # Read-only view of the Triage operator's queue
+│   │   ├── triage_queue.py      # Live Triage queue — deep-linking + status filtering
 │   │   ├── kb_articles.py       # Knowledge base viewer / auto-safe toggle
 │   │   ├── run_log.py           # Pipeline ledger views
+│   │   ├── zendesk.py           # Live ticket viewer + manual import into triage_queue
+│   │   ├── team_roster.py       # On-call agents + real-time capacity for Escalation routing
+│   │   ├── users_directory.py   # CRUD over the Triage identity source
 │   │   └── admin.py, audit.py, auth.py, items.py, examples.py, health.py  # template scaffolding
 │   └── core/                    # supabase.py (PostgREST client), database.py, storage.py
 ├── frontend/src/app/             # Next.js pages — one per surface above

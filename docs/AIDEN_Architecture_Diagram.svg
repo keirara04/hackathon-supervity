@@ -1,0 +1,193 @@
+<svg viewBox="0 0 1600 1180" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#16a34a"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="1180" fill="#f8fafc"/>
+
+  <!-- Title -->
+  <text x="620" y="34" text-anchor="middle" font-size="22" font-weight="700" fill="#0f172a">AIDEN — Service Desk Command Center Architecture</text>
+  <text x="620" y="54" text-anchor="middle" font-size="13" fill="#64748b">Supervity Autopilot Asia Hackathon 2026 · Round 2 · Track 3 (Customer Support)</text>
+
+  <!-- Legend -->
+  <rect x="1230" y="18" width="16" height="16" rx="3" fill="#e0e7ff" stroke="#6366f1"/>
+  <text x="1252" y="31" font-size="12" fill="#334155">Built on Auto (Amsyar)</text>
+  <rect x="1230" y="42" width="16" height="16" rx="3" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="1252" y="55" font-size="12" fill="#334155">Coded — this repo (Keira)</text>
+
+  <!-- ===================== CHANNELS ===================== -->
+  <rect x="400" y="80" width="360" height="66" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="580" y="106" text-anchor="middle" font-size="15" font-weight="600" fill="#0f172a">📥 Zendesk</text>
+  <text x="580" y="126" text-anchor="middle" font-size="12" fill="#475569">Channel — ticket intake + requester replies</text>
+
+  <rect x="840" y="80" width="360" height="66" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1020" y="106" text-anchor="middle" font-size="15" font-weight="600" fill="#0f172a">📧 Outlook</text>
+  <text x="1020" y="126" text-anchor="middle" font-size="12" fill="#475569">Channel — email intake + escalation notices</text>
+
+  <line x1="580" y1="146" x2="700" y2="180" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="1020" y1="146" x2="900" y2="180" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ===================== LAYER 1: AUTO ===================== -->
+  <rect x="40" y="180" width="1520" height="320" rx="14" fill="#eef2ff" stroke="#6366f1" stroke-width="2"/>
+  <text x="64" y="210" font-size="15" font-weight="700" fill="#3730a3">LAYER 1 — Agent Ecosystem · auto.supervity.ai (owner: Amsyar)</text>
+
+  <!-- Orchestrator -->
+  <rect x="560" y="222" width="480" height="58" rx="10" fill="#c7d2fe" stroke="#4f46e5" stroke-width="1.5"/>
+  <text x="800" y="245" text-anchor="middle" font-size="14" font-weight="700" fill="#1e1b4b">🧭 Orchestrator — Stalled-Ticket Resolver</text>
+  <text x="800" y="263" text-anchor="middle" font-size="11" fill="#312e81">Routes by SLA risk · holds cluster state · retries · escalates</text>
+
+  <line x1="800" y1="280" x2="800" y2="298" stroke="#4f46e5" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Operators row -->
+  <g font-size="12">
+    <!-- 1 Sweep -->
+    <rect x="65" y="300" width="230" height="92" rx="8" fill="#ffffff" stroke="#6366f1" stroke-width="1.3"/>
+    <text x="180" y="322" text-anchor="middle" font-size="13" font-weight="700" fill="#312e81">1 · Sweep</text>
+    <text x="180" y="340" text-anchor="middle" fill="#475569">Intake &amp; normalize</text>
+    <text x="180" y="356" text-anchor="middle" fill="#475569">from Zendesk/Outlook</text>
+    <text x="180" y="378" text-anchor="middle" font-size="10" fill="#16a34a">✅ built &amp; verified</text>
+
+    <!-- 2 Triage -->
+    <rect x="313" y="300" width="230" height="92" rx="8" fill="#ffffff" stroke="#6366f1" stroke-width="1.3"/>
+    <text x="428" y="322" text-anchor="middle" font-size="13" font-weight="700" fill="#312e81">2 · Triage</text>
+    <text x="428" y="340" text-anchor="middle" fill="#475569">Identity + SLA scoring,</text>
+    <text x="428" y="356" text-anchor="middle" fill="#475569">writes triage_queue</text>
+    <text x="428" y="378" text-anchor="middle" font-size="10" fill="#16a34a">✅ built &amp; verified</text>
+
+    <!-- 3 Diagnose -->
+    <rect x="561" y="300" width="230" height="92" rx="8" fill="#ffffff" stroke="#6366f1" stroke-width="1.3"/>
+    <text x="676" y="322" text-anchor="middle" font-size="13" font-weight="700" fill="#312e81">3 · Diagnose &amp; Correlate</text>
+    <text x="676" y="340" text-anchor="middle" fill="#475569">Matches KB article,</text>
+    <text x="676" y="356" text-anchor="middle" fill="#475569">root cause + confidence</text>
+    <text x="676" y="378" text-anchor="middle" font-size="10" fill="#16a34a">✅ built &amp; verified</text>
+
+    <!-- 4 Score & Decide -->
+    <rect x="809" y="300" width="230" height="92" rx="8" fill="#ffffff" stroke="#6366f1" stroke-width="1.3"/>
+    <text x="924" y="322" text-anchor="middle" font-size="13" font-weight="700" fill="#312e81">4 · Score &amp; Decide</text>
+    <text x="924" y="340" text-anchor="middle" fill="#475569">Reads policy_config,</text>
+    <text x="924" y="356" text-anchor="middle" fill="#475569">verdict: auto vs human</text>
+    <text x="924" y="378" text-anchor="middle" font-size="10" fill="#16a34a">✅ built &amp; verified</text>
+
+    <!-- 5 Remediate -->
+    <rect x="1057" y="300" width="230" height="92" rx="8" fill="#ffffff" stroke="#6366f1" stroke-width="1.3"/>
+    <text x="1172" y="322" text-anchor="middle" font-size="13" font-weight="700" fill="#312e81">5 · Remediate &amp; Verify</text>
+    <text x="1172" y="340" text-anchor="middle" fill="#475569">Grants access / sends steps,</text>
+    <text x="1172" y="356" text-anchor="middle" fill="#475569">replies in Zendesk, verifies</text>
+    <text x="1172" y="378" text-anchor="middle" font-size="10" fill="#ca8a04">🟡 v2 written, live test pending</text>
+
+    <!-- 6 Escalation -->
+    <rect x="1305" y="300" width="230" height="92" rx="8" fill="#ffffff" stroke="#6366f1" stroke-width="1.3"/>
+    <text x="1420" y="322" text-anchor="middle" font-size="13" font-weight="700" fill="#312e81">6 · Escalation &amp; Change</text>
+    <text x="1420" y="340" text-anchor="middle" fill="#475569">Routes to Workbench,</text>
+    <text x="1420" y="356" text-anchor="middle" fill="#475569">change-approval requests</text>
+    <text x="1420" y="378" text-anchor="middle" font-size="10" fill="#ca8a04">🟡 built / partial</text>
+  </g>
+
+  <text x="800" y="416" text-anchor="middle" font-size="11" fill="#4338ca">Major-Incident Commander &amp; CSAT Follow-up are designed but not yet built as Auto Operators —</text>
+  <text x="800" y="432" text-anchor="middle" font-size="11" fill="#4338ca">Major-Incident detection is covered on the Command Center side instead (see Layer 2 → Incidents).</text>
+
+  <line x1="800" y1="500" x2="800" y2="536" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ===================== SUPABASE ===================== -->
+  <rect x="40" y="536" width="1520" height="110" rx="14" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="64" y="562" font-size="15" font-weight="700" fill="#155e75">🗄️ Supabase — System of Record (project ovtxhlpeixfjyyxqufhw, accessed via PostgREST)</text>
+  <text x="64" y="588" font-size="12" fill="#0e7490">run_log · policy_config · policy_eval_log · workbench_tasks · triage_queue · team_roster</text>
+  <text x="64" y="608" font-size="12" fill="#0e7490">kb_articles · incidents · users_directory · assets_access · csat_surveys · change_requests</text>
+  <text x="1420" y="562" text-anchor="end" font-size="11" fill="#0e7490">Read/written by both layers —</text>
+  <text x="1420" y="578" text-anchor="end" font-size="11" fill="#0e7490">the single shared source of truth</text>
+
+  <line x1="800" y1="646" x2="800" y2="682" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ===================== LAYER 2: COMMAND CENTER ===================== -->
+  <rect x="40" y="682" width="1520" height="336" rx="14" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="712" font-size="15" font-weight="700" fill="#166534">LAYER 2 — Command Center · this repo, FastAPI + Next.js (owner: Keira)</text>
+
+  <g font-size="12">
+    <!-- Dashboard -->
+    <rect x="80" y="728" width="460" height="90" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="1.3"/>
+    <text x="310" y="750" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">📊 Dashboard</text>
+    <text x="310" y="768" text-anchor="middle" fill="#3f6212">Live KPIs from run_log — MTTR,</text>
+    <text x="310" y="784" text-anchor="middle" fill="#3f6212">auto-resolution %, SLA %, volume</text>
+
+    <!-- AI Policies -->
+    <rect x="570" y="728" width="460" height="90" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="1.3"/>
+    <text x="800" y="750" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">⚖️ AI Policies</text>
+    <text x="800" y="768" text-anchor="middle" fill="#3f6212">12 live levers, gate before action,</text>
+    <text x="800" y="784" text-anchor="middle" fill="#3f6212">every evaluation logged</text>
+
+    <!-- AI Insights -->
+    <rect x="1060" y="728" width="460" height="90" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="1.3"/>
+    <text x="1290" y="750" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">💡 AI Insights</text>
+    <text x="1290" y="768" text-anchor="middle" fill="#3f6212">Patterns, forecast, and a</text>
+    <text x="1290" y="784" text-anchor="middle" fill="#3f6212">self-learning policy suggester</text>
+
+    <!-- Workbench -->
+    <rect x="80" y="838" width="460" height="90" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="1.3"/>
+    <text x="310" y="860" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">🧑‍💻 Workbench</text>
+    <text x="310" y="878" text-anchor="middle" fill="#3f6212">Human queue — approve, modify,</text>
+    <text x="310" y="894" text-anchor="middle" fill="#3f6212">or reject, with full context</text>
+
+    <!-- Data Manager -->
+    <rect x="570" y="838" width="460" height="90" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="1.3"/>
+    <text x="800" y="860" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">🔌 Data Manager</text>
+    <text x="800" y="878" text-anchor="middle" fill="#3f6212">Live health registry of every</text>
+    <text x="800" y="894" text-anchor="middle" fill="#3f6212">connected system</text>
+
+    <!-- AI Manager -->
+    <rect x="1060" y="838" width="460" height="90" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="1.3"/>
+    <text x="1290" y="860" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">💬 AI Manager</text>
+    <text x="1290" y="878" text-anchor="middle" fill="#3f6212">Grounded chat — answers only from</text>
+    <text x="1290" y="894" text-anchor="middle" fill="#3f6212">tool calls, can trigger a real Auto run</text>
+  </g>
+
+  <!-- Bonus surfaces row -->
+  <text x="80" y="946" font-size="11" font-weight="600" fill="#166534">Bonus surfaces — same live Supabase data:</text>
+  <g font-size="11">
+    <rect x="80" y="954" width="200" height="42" rx="7" fill="#ffffff" stroke="#86efac" stroke-width="1.2"/>
+    <text x="180" y="972" text-anchor="middle" font-weight="600" fill="#166534">Incidents</text>
+    <text x="180" y="988" text-anchor="middle" fill="#3f6212">cluster_key correlation</text>
+
+    <rect x="292" y="954" width="200" height="42" rx="7" fill="#ffffff" stroke="#86efac" stroke-width="1.2"/>
+    <text x="392" y="972" text-anchor="middle" font-weight="600" fill="#166534">Triage Queue</text>
+    <text x="392" y="988" text-anchor="middle" fill="#3f6212">deep-linking + status filter</text>
+
+    <rect x="504" y="954" width="200" height="42" rx="7" fill="#ffffff" stroke="#86efac" stroke-width="1.2"/>
+    <text x="604" y="972" text-anchor="middle" font-weight="600" fill="#166534">Run Log</text>
+    <text x="604" y="988" text-anchor="middle" fill="#3f6212">per-ticket pipeline ledger</text>
+
+    <rect x="716" y="954" width="200" height="42" rx="7" fill="#ffffff" stroke="#86efac" stroke-width="1.2"/>
+    <text x="816" y="972" text-anchor="middle" font-weight="600" fill="#166534">Knowledge Base</text>
+    <text x="816" y="988" text-anchor="middle" fill="#3f6212">viewer + auto-safe toggle</text>
+
+    <rect x="928" y="954" width="200" height="42" rx="7" fill="#ffffff" stroke="#86efac" stroke-width="1.2"/>
+    <text x="1028" y="972" text-anchor="middle" font-weight="600" fill="#166534">Team Roster</text>
+    <text x="1028" y="988" text-anchor="middle" fill="#3f6212">real capacity → Escalation routing</text>
+
+    <rect x="1140" y="954" width="188" height="42" rx="7" fill="#ffffff" stroke="#86efac" stroke-width="1.2"/>
+    <text x="1234" y="972" text-anchor="middle" font-weight="600" fill="#166534">Users Directory</text>
+    <text x="1234" y="988" text-anchor="middle" fill="#3f6212">identity source CRUD</text>
+
+    <rect x="1340" y="954" width="180" height="42" rx="7" fill="#ffffff" stroke="#86efac" stroke-width="1.2"/>
+    <text x="1430" y="972" text-anchor="middle" font-weight="600" fill="#166534">Zendesk Tickets</text>
+    <text x="1430" y="988" text-anchor="middle" fill="#3f6212">live viewer + import</text>
+  </g>
+
+  <!-- Human -->
+  <rect x="650" y="1060" width="300" height="66" rx="10" fill="#fefce8" stroke="#ca8a04" stroke-width="1.5"/>
+  <text x="800" y="1086" text-anchor="middle" font-size="14" font-weight="700" fill="#713f12">🙋 Human in the loop</text>
+  <text x="800" y="1104" text-anchor="middle" font-size="11" fill="#854d0e">IT lead resolving Workbench exceptions</text>
+
+  <!-- Workbench -> Human: exception handed off for decision -->
+  <path d="M 260 928 C 200 990, 480 1040, 650 1088" fill="none" stroke="#ca8a04" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="300" y="1015" font-size="11" fill="#854d0e">hands off exception</text>
+
+  <!-- Human -> AI Insights: override becomes a suggested policy patch (self-learning loop) -->
+  <path d="M 950 1080 C 1440 1030, 1440 880, 1290 818" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#arrowGreen)"/>
+  <text x="1300" y="1000" text-anchor="middle" font-size="11" font-weight="600" fill="#166534">decision feeds self-learning</text>
+  <text x="1300" y="1015" text-anchor="middle" font-size="11" font-weight="600" fill="#166534">→ suggested AI Insights policy patch</text>
+</svg>
