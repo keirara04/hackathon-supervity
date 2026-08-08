@@ -1,82 +1,39 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { Command } from 'cmdk'
 import { cn } from '@/lib/utils'
 import { Icons } from '@/components/ui/icons'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { navItems } from '@/components/layout/Sidebar'
 
 interface CommandPaletteProps {
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }
 
-// Recent items (would come from localStorage/state in real app)
-const recentItems = [
-  { id: 'recent-1', label: 'Dashboard', icon: Icons.dashboard, href: '/' },
-  {
-    id: 'recent-2',
-    label: 'Run Diagnostics',
-    icon: Icons.activity,
-    action: 'diagnostics',
-  },
-]
+interface PaletteItem {
+  id: string
+  label: string
+  icon: React.ElementType
+  href?: string
+  action?: string
+}
 
-// Navigation items
-const navigationItems = [
-  {
-    id: 'dashboard',
-    label: 'Go to Dashboard',
-    icon: Icons.dashboard,
-    href: '/',
-  },
-  {
-    id: 'workbench',
-    label: 'Go to Workbench',
-    icon: Icons.workbench,
-    href: '/workbench',
-  },
-  {
-    id: 'ai-policies',
-    label: 'Go to AI Policies',
-    icon: Icons.brain,
-    href: '/ai/policies',
-  },
-  {
-    id: 'ai-insights',
-    label: 'Go to AI Insights',
-    icon: Icons.lightbulb,
-    href: '/ai/insights',
-  },
-  {
-    id: 'settings',
-    label: 'Go to Settings',
-    icon: Icons.settings,
-    href: '/settings',
-  },
-  {
-    id: 'brand',
-    label: 'Go to Brand & Design',
-    icon: Icons.palette,
-    href: '/brand',
-  },
-]
+// Every real page in the app, flattened from the same list Sidebar renders
+// — single source of truth, so this can't drift out of sync with real routes.
+const navigationItems: PaletteItem[] = navItems.flatMap((section) =>
+  section.items.map((item) => ({
+    id: item.href,
+    label: `Go to ${item.label}`,
+    icon: item.icon,
+    href: item.href,
+  }))
+)
 
-// Action items
-const actionItems = [
-  {
-    id: 'new-task',
-    label: 'Create New Task',
-    icon: Icons.plus,
-    action: 'new-task',
-  },
-  {
-    id: 'run-diagnostics',
-    label: 'Run Diagnostics',
-    icon: Icons.activity,
-    action: 'diagnostics',
-  },
+// Only real, working actions — nothing that silently no-ops.
+const actionItems: PaletteItem[] = [
   {
     id: 'refresh',
     label: 'Refresh Data',
@@ -85,16 +42,28 @@ const actionItems = [
   },
 ]
 
-// Settings items
-const settingsItems = [
-  {
-    id: 'settings',
-    label: 'Open Settings',
-    icon: Icons.settings,
-    href: '/settings',
-  },
-  { id: 'help', label: 'Help & Support', icon: Icons.help, action: 'help' },
-]
+const RECENT_KEY = 'command_palette_recent'
+const MAX_RECENT = 4
+
+function loadRecentHrefs(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(RECENT_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function pushRecentHref(href: string) {
+  try {
+    const current = loadRecentHrefs().filter((h) => h !== href)
+    const next = [href, ...current].slice(0, MAX_RECENT)
+    window.localStorage.setItem(RECENT_KEY, JSON.stringify(next))
+  } catch {
+    // ignore storage failures (private mode, quota, etc.)
+  }
+}
 
 // Debounce hook
 function useDebounce<T>(value: T, delay: number): T {
@@ -116,12 +85,28 @@ function useDebounce<T>(value: T, delay: number): T {
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [search, setSearch] = React.useState('')
+  const [recentHrefs, setRecentHrefs] = React.useState<string[]>([])
   const debouncedSearch = useDebounce(search, 150)
   const router = useRouter()
+  const pathname = usePathname()
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   const controlledOpen = open !== undefined ? open : isOpen
   const setControlledOpen = onOpenChange || setIsOpen
+
+  // Track real navigation history — this component stays mounted app-wide,
+  // so pathname changes on every real route change.
+  React.useEffect(() => {
+    if (pathname) {
+      pushRecentHref(pathname)
+      setRecentHrefs(loadRecentHrefs())
+    }
+  }, [pathname])
+
+  const recentItems = recentHrefs
+    .filter((href) => href !== pathname)
+    .map((href) => navigationItems.find((item) => item.href === href))
+    .filter((item): item is PaletteItem => Boolean(item))
 
   // Keyboard shortcut handler
   React.useEffect(() => {
@@ -155,19 +140,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
     if (item.href) {
       router.push(item.href)
-    } else if (item.action) {
-      // Handle actions
-      switch (item.action) {
-        case 'refresh':
-          window.location.reload()
-          break
-        case 'diagnostics':
-          // TODO: Implement diagnostics action
-          break
-        case 'help':
-          // TODO: Implement help action
-          break
-      }
+    } else if (item.action === 'refresh') {
+      window.location.reload()
     }
   }
 
@@ -234,7 +208,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                       strokeWidth={1.5}
                     />
                     <item.icon className='h-4 w-4' strokeWidth={1.5} />
-                    <span>{item.label}</span>
+                    <span>{item.label.replace(/^Go to /, '')}</span>
                   </Command.Item>
                 ))}
               </Command.Group>
@@ -269,29 +243,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               className='px-2 py-1.5 text-xs font-semibold text-muted-foreground'
             >
               {actionItems.map((item) => (
-                <Command.Item
-                  key={item.id}
-                  value={item.label}
-                  onSelect={() => handleSelect(item)}
-                  className={cn(
-                    'flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5',
-                    'text-sm text-foreground',
-                    'aria-selected:bg-brand-navy aria-selected:text-white',
-                    'transition-colors'
-                  )}
-                >
-                  <item.icon className='h-4 w-4' strokeWidth={1.5} />
-                  <span>{item.label}</span>
-                </Command.Item>
-              ))}
-            </Command.Group>
-
-            {/* Settings */}
-            <Command.Group
-              heading='Settings'
-              className='px-2 py-1.5 text-xs font-semibold text-muted-foreground'
-            >
-              {settingsItems.map((item) => (
                 <Command.Item
                   key={item.id}
                   value={item.label}

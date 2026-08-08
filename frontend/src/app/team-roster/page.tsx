@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { cn } from '@/lib/utils'
 import { apiClient } from '@/lib/api-client'
 import { useSearchFilter } from '@/hooks'
+import { GuideBanner } from '@/components/GuideBanner'
 
 interface Agent {
   id: number
@@ -33,6 +35,15 @@ const containerVariants = {
 const itemVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }
 
 export default function TeamRosterPage() {
+  return (
+    <Suspense fallback={null}>
+      <TeamRosterPageInner />
+    </Suspense>
+  )
+}
+
+function TeamRosterPageInner() {
+  const searchParams = useSearchParams()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -76,6 +87,8 @@ export default function TeamRosterPage() {
           <span className='hidden sm:inline'>Refresh</span>
         </Button>
       </motion.div>
+
+      <GuideBanner guide={searchParams.get('guide')} />
 
       {error && (
         <motion.div variants={itemVariants}>

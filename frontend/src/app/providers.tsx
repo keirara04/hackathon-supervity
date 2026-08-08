@@ -4,7 +4,13 @@ import { SessionProvider } from 'next-auth/react'
 import { ToastProvider } from '@/components/ui/toast'
 import { CommandPalette } from '@/components/CommandPalette'
 import { AIProvider } from '@/context/AIContext'
+import { CommandPaletteProvider, useCommandPalette } from '@/context/CommandPaletteContext'
 import { AIManager } from '@/components/ai/AIManager'
+
+function ControlledCommandPalette() {
+  const { isOpen, setOpen } = useCommandPalette()
+  return <CommandPalette open={isOpen} onOpenChange={setOpen} />
+}
 
 // Mock session — all components see an authenticated admin user
 const mockSession: {
@@ -29,10 +35,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
       refetchOnWindowFocus={false}
     >
       <AIProvider>
-        {children}
-        <AIManager />
-        <ToastProvider />
-        <CommandPalette />
+        <CommandPaletteProvider>
+          {children}
+          <AIManager />
+          <ToastProvider />
+          <ControlledCommandPalette />
+        </CommandPaletteProvider>
       </AIProvider>
     </SessionProvider>
   )

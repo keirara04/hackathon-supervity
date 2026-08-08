@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   Card,
@@ -14,6 +15,7 @@ import { Switch } from '@/components/ui/switch'
 import { Icons } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { apiClient } from '@/lib/api-client'
+import { GuideBanner } from '@/components/GuideBanner'
 
 type LeverType = 'boolean' | 'number' | 'array' | 'text' | 'object'
 
@@ -202,6 +204,15 @@ const VERDICT_STYLES: Record<string, string> = {
 }
 
 export default function PoliciesPage() {
+  return (
+    <Suspense fallback={null}>
+      <PoliciesPageInner />
+    </Suspense>
+  )
+}
+
+function PoliciesPageInner() {
+  const searchParams = useSearchParams()
   const [levers, setLevers] = useState<Lever[]>([])
   const [policy, setPolicy] = useState<PolicyConfig | null>(null)
   const [draft, setDraft] = useState<Record<string, PolicyValue>>({})
@@ -211,6 +222,9 @@ export default function PoliciesPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedMsg, setSavedMsg] = useState<string | null>(null)
+
+  const guide = searchParams.get('guide')
+  const highlight = searchParams.get('highlight')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -236,6 +250,12 @@ export default function PoliciesPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    if (!highlight || loading) return
+    const el = document.getElementById(`lever-${highlight}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [highlight, loading])
 
   function setField(key: string, value: PolicyValue) {
     setDraft((prev) => ({ ...prev, [key]: value }))
@@ -307,6 +327,8 @@ export default function PoliciesPage() {
         </motion.div>
       )}
 
+      <GuideBanner guide={guide} />
+
       <motion.div variants={itemVariants}>
         <Card>
           <CardHeader>
@@ -326,9 +348,11 @@ export default function PoliciesPage() {
                   return (
                     <div
                       key={lever.key}
+                      id={`lever-${lever.key}`}
                       className={cn(
                         'flex flex-wrap items-center justify-between gap-4 py-4',
-                        isDirty && 'rounded-lg bg-primary/5 px-3'
+                        isDirty && 'rounded-lg bg-primary/5 px-3',
+                        highlight === lever.key && 'rounded-lg bg-brand-cornflower/10 px-3 ring-2 ring-brand-cornflower/50'
                       )}
                     >
                       <div>

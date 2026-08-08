@@ -63,17 +63,20 @@ export default function ZendeskTicketsPage() {
   const [importing, setImporting] = useState(false)
   const [results, setResults] = useState<Record<string, ImportResult>>({})
   const [detailTicket, setDetailTicket] = useState<ZendeskTicket | null>(null)
+  const [includeSolved, setIncludeSolved] = useState(false)
 
   const { query, setQuery, filtered: visibleTickets } = useSearchFilter(
     tickets,
     (t) => `${t.subject} ${t.requester_name ?? ''} ${t.issue_key} ${t.tags.join(' ')}`
   )
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (solved: boolean) => {
     setLoading(true)
     setError(null)
     try {
-      const res = await apiClient.get<{ tickets: ZendeskTicket[]; count: number }>('/api/zendesk/tickets')
+      const res = await apiClient.get<{ tickets: ZendeskTicket[]; count: number }>(
+        `/api/zendesk/tickets?include_solved=${solved}`
+      )
       setTickets(res.tickets)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load Zendesk tickets')
@@ -83,8 +86,8 @@ export default function ZendeskTicketsPage() {
   }, [])
 
   useEffect(() => {
-    load()
-  }, [load])
+    load(includeSolved)
+  }, [load, includeSolved])
 
   function toggleSelect(id: number) {
     setSelected((prev) => {
@@ -115,7 +118,7 @@ export default function ZendeskTicketsPage() {
       res.results.forEach((r) => (resultMap[r.issue_key] = r))
       setResults((prev) => ({ ...prev, ...resultMap }))
       setSelected(new Set())
-      await load()
+      await load(includeSolved)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Import failed')
     } finally {
@@ -129,10 +132,20 @@ export default function ZendeskTicketsPage() {
         <div>
           <h1 className='text-display-3 font-bold tracking-tight text-brand-navy'>Zendesk Tickets</h1>
           <p className='mt-2 text-lg text-muted-foreground'>
-            Live unresolved tickets from Zendesk — {tickets.length} matching the Sweep query.
+            Live tickets from Zendesk — {tickets.length}{' '}
+            {includeSolved ? 'total' : 'unresolved, matching the Sweep query'}.
           </p>
         </div>
-        <div className='flex items-center gap-2'>
+        <div className='flex items-center gap-3'>
+          <label className='flex items-center gap-2 text-sm text-muted-foreground'>
+            <input
+              type='checkbox'
+              checked={includeSolved}
+              onChange={(e) => setIncludeSolved(e.target.checked)}
+              className='h-4 w-4 rounded border-border accent-primary'
+            />
+            Show solved/closed
+          </label>
           {selected.size > 0 && (
             <Button variant='gradient' size='sm' onClick={importSelected} disabled={importing}>
               {importing ? (
@@ -143,7 +156,7 @@ export default function ZendeskTicketsPage() {
               <span className='hidden sm:inline'>Import selected</span> ({selected.size})
             </Button>
           )}
-          <Button variant='outline' size='sm' onClick={load} disabled={loading}>
+          <Button variant='outline' size='sm' onClick={() => load(includeSolved)} disabled={loading}>
             <Icons.refresh className={cn('sm:mr-2 h-4 w-4', loading && 'animate-spin')} />
             <span className='hidden sm:inline'>Refresh</span>
           </Button>

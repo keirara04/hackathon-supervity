@@ -54,7 +54,7 @@ All three are pinged live from the **Data Manager** page (`/data-manager`) — s
 
 ## Outcome metrics & integrations note (submission requirement)
 
-**Metrics tracked:** MTTR, SLA compliance %, auto-resolution rate, ticket volume, department split — all computed live from `run_log` on the Dashboard (`GET /api/dashboard/kpis`), not static numbers. CSAT is modeled in the policy schema (`csat_escalate_below`) but not yet populated — the CSAT Follow-up operator is still upstream.
+**Metrics tracked:** MTTR, SLA compliance %, auto-resolution rate, ticket volume, department split — all computed live from `run_log` on the Dashboard (`GET /api/dashboard/kpis`), not static numbers.
 
 **Integrations used:** Zendesk (channel), Outlook (channel), Supabase (system of record) — 3 live integrations across 2 categories, all visible and health-checked in Data Manager.
 

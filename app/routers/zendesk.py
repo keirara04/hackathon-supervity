@@ -28,9 +28,14 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/zendesk", tags=["Zendesk"])
 
 SWEEP_QUERY = "type:ticket status<solved -tags:aiden_processed"
+# Same query minus the status filter — used only when the user explicitly
+# asks to see solved/closed tickets too; Sweep itself never picks these up.
+ALL_STATUSES_QUERY = "type:ticket -tags:aiden_processed"
 
 
-async def _fetch_tickets() -> tuple[list[dict], dict[str, dict]]:
+async def _fetch_tickets(
+    include_solved: bool = False,
+) -> tuple[list[dict], dict[str, dict]]:
     async with httpx.AsyncClient(timeout=15.0) as client:
         token = await get_zendesk_token(client)
         if not token:
@@ -39,7 +44,7 @@ async def _fetch_tickets() -> tuple[list[dict], dict[str, dict]]:
 
         search_resp = await client.get(
             f"https://{ZENDESK_SUBDOMAIN}.zendesk.com/api/v2/search.json",
-            params={"query": SWEEP_QUERY},
+            params={"query": ALL_STATUSES_QUERY if include_solved else SWEEP_QUERY},
             headers=headers,
         )
         if search_resp.status_code >= 300:
@@ -70,13 +75,13 @@ async def _fetch_tickets() -> tuple[list[dict], dict[str, dict]]:
 
 
 @router.get("/tickets")
-async def list_tickets():
+async def list_tickets(include_solved: bool = False):
     if not zendesk_configured():
         raise HTTPException(
             status_code=503, detail="Zendesk credentials not set in backend .env"
         )
 
-    results, identities = await _fetch_tickets()
+    results, identities = await _fetch_tickets(include_solved)
     issue_keys = [str(t["id"]) for t in results]
 
     queued_map: dict[str, str] = {}

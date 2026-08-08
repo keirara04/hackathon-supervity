@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,14 @@ interface Insight {
   action: string
   confidence: number
   suggested_patch?: Record<string, unknown>
+  route: string | null
+  guide: string | null
+}
+
+function suggestionHref(insight: Insight): string {
+  const route = insight.route ?? ''
+  const sep = route.includes('?') ? '&' : '?'
+  return insight.guide ? `${route}${sep}guide=${encodeURIComponent(insight.guide)}` : route
 }
 
 interface InsightsResponse {
@@ -60,8 +69,6 @@ export default function InsightsPage() {
   const [error, setError] = useState<string | null>(null)
   const [aiInsight, setAiInsight] = useState<Insight | null>(null)
   const [aiLoading, setAiLoading] = useState(true)
-  const [applying, setApplying] = useState<number | null>(null)
-  const [appliedIdx, setAppliedIdx] = useState<Set<number>>(new Set())
   const [activeIdx, setActiveIdx] = useState<number | null>(null)
   const [diagnosis, setDiagnosis] = useState<string | null>(null)
   const [diagnosing, setDiagnosing] = useState(false)
@@ -108,18 +115,6 @@ export default function InsightsPage() {
     () => (aiInsight ? [...(data?.insights ?? []), aiInsight] : data?.insights ?? []),
     [data, aiInsight]
   )
-
-  async function applyPatch(idx: number, patch: Record<string, unknown>) {
-    setApplying(idx)
-    try {
-      await apiClient.patch('/api/policies', patch)
-      setAppliedIdx((prev) => new Set(prev).add(idx))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to apply policy change')
-    } finally {
-      setApplying(null)
-    }
-  }
 
   function openModal(idx: number) {
     setActiveIdx(idx)
@@ -233,30 +228,13 @@ export default function InsightsPage() {
                     </p>
                   </div>
                   <div className='mt-2 flex items-center justify-between'>
-                    {insight.type === 'self_learning' && insight.suggested_patch ? (
-                      appliedIdx.has(i) ? (
-                        <span className='flex items-center gap-1 text-xs font-medium text-emerald-500'>
-                          <Icons.checkCircle className='h-3.5 w-3.5' />
-                          Applied
-                        </span>
-                      ) : (
-                        <Button
-                          variant='gradient'
-                          size='sm'
-                          disabled={applying === i}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            applyPatch(i, insight.suggested_patch!)
-                          }}
-                        >
-                          {applying === i ? (
-                            <Icons.loader className='mr-2 h-3.5 w-3.5 animate-spin' />
-                          ) : (
-                            <Icons.zap className='mr-2 h-3.5 w-3.5' />
-                          )}
-                          Apply this change
+                    {insight.route ? (
+                      <Link href={suggestionHref(insight)} onClick={(e) => e.stopPropagation()}>
+                        <Button variant='gradient' size='sm'>
+                          <Icons.zap className='mr-2 h-3.5 w-3.5' />
+                          Apply Suggestion
                         </Button>
-                      )
+                      </Link>
                     ) : (
                       <span />
                     )}
@@ -318,28 +296,14 @@ export default function InsightsPage() {
                   Confidence {Math.round(activeInsight.confidence * 100)}%
                 </p>
 
-                {activeInsight.type === 'self_learning' && activeInsight.suggested_patch && (
+                {activeInsight.route && (
                   <div>
-                    {appliedIdx.has(activeIdx!) ? (
-                      <span className='flex items-center gap-1 text-xs font-medium text-emerald-500'>
-                        <Icons.checkCircle className='h-3.5 w-3.5' />
-                        Applied
-                      </span>
-                    ) : (
-                      <Button
-                        variant='gradient'
-                        size='sm'
-                        disabled={applying === activeIdx}
-                        onClick={() => applyPatch(activeIdx!, activeInsight.suggested_patch!)}
-                      >
-                        {applying === activeIdx ? (
-                          <Icons.loader className='mr-2 h-3.5 w-3.5 animate-spin' />
-                        ) : (
-                          <Icons.zap className='mr-2 h-3.5 w-3.5' />
-                        )}
-                        Apply this change
+                    <Link href={suggestionHref(activeInsight)}>
+                      <Button variant='gradient' size='sm'>
+                        <Icons.zap className='mr-2 h-3.5 w-3.5' />
+                        Apply Suggestion
                       </Button>
-                    )}
+                    </Link>
                   </div>
                 )}
 

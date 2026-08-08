@@ -1,7 +1,9 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 import { Icons } from '@/components/ui/icons'
 import {
@@ -10,66 +12,167 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 
-// Notification types
 type NotificationType = 'info' | 'success' | 'warning' | 'error'
+
+type NotificationSource = 'Incident' | 'Workbench' | 'Health'
 
 interface Notification {
   id: string
   type: NotificationType
+  source: NotificationSource
   title: string
   message: string
   timestamp: Date
-  read: boolean
+  href: string
 }
 
-// Mock notifications - in real app, this would come from a store/API
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    type: 'success',
-    title: 'Diagnostics Complete',
-    message: 'All systems are running normally.',
-    timestamp: new Date(Date.now() - 5 * 60 * 1000), // 5 min ago
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'info',
-    title: 'New Feature Available',
-    message: 'Check out the new workbench improvements.',
-    timestamp: new Date(Date.now() - 30 * 60 * 1000), // 30 min ago
-    read: false,
-  },
-  {
-    id: '3',
-    type: 'warning',
-    title: 'Token Expiring Soon',
-    message: 'Your access token will expire in 24 hours.',
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-    read: true,
-  },
-]
+const READ_IDS_KEY = 'notif_read_ids'
+const POLL_MS = 30000
+
+function loadReadIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set()
+  try {
+    const raw = window.localStorage.getItem(READ_IDS_KEY)
+    return raw ? new Set(JSON.parse(raw)) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+function saveReadIds(ids: Set<string>) {
+  try {
+    window.localStorage.setItem(READ_IDS_KEY, JSON.stringify([...ids]))
+  } catch {
+    // ignore storage failures (private mode, quota, etc.)
+  }
+}
+
+interface IncidentRow {
+  incident_id: string
+  title: string
+  severity: string
+  status: string
+  child_count: number
+  opened_at: string
+}
+
+interface WorkbenchTaskRow {
+  task_id: string
+  created_at: string
+  enrichment: { is_vip: boolean | null; department: string | null } | null
+  context: Record<string, unknown>
+}
+
+interface HealthSystem {
+  name: string
+  status: string
+  detail: string
+}
+
+async function fetchLiveNotifications(): Promise<Notification[]> {
+  const results: Notification[] = []
+
+  const [incidentsRes, workbenchRes, healthRes] = await Promise.allSettled([
+    apiClient.get<{ incidents: IncidentRow[] }>('/api/incidents'),
+    apiClient.get<{ tasks: WorkbenchTaskRow[]; count: number }>('/api/workbench?status=open&limit=50'),
+    apiClient.get<{ systems: HealthSystem[] }>('/api/data-manager/health'),
+  ])
+
+  if (incidentsRes.status === 'fulfilled') {
+    for (const inc of incidentsRes.value.incidents.filter((i) => i.status === 'open')) {
+      results.push({
+        id: `incident-${inc.incident_id}`,
+        type: inc.severity === 'high' || inc.severity === 'critical' ? 'error' : 'warning',
+        source: 'Incident',
+        title: inc.title,
+        message: `${inc.child_count} related tickets sharing this cluster are currently unresolved. Severity: ${inc.severity}.`,
+        timestamp: new Date(inc.opened_at),
+        href: '/incidents',
+      })
+    }
+  }
+
+  if (workbenchRes.status === 'fulfilled') {
+    const { tasks, count } = workbenchRes.value
+    if (count > 0) {
+      results.push({
+        id: 'workbench-open',
+        type: 'warning',
+        source: 'Workbench',
+        title: `${count} ticket${count === 1 ? '' : 's'} waiting for review`,
+        message: 'Human review needed before these can proceed through the pipeline.',
+        timestamp: new Date(),
+        href: '/workbench',
+      })
+    }
+    for (const t of tasks.filter((t) => t.enrichment?.is_vip)) {
+      results.push({
+        id: `workbench-vip-${t.task_id}`,
+        type: 'error',
+        source: 'Workbench',
+        title: 'VIP ticket waiting for review',
+        message: `Department: ${t.enrichment?.department ?? 'unknown'}. VIP tickets should be prioritized.`,
+        timestamp: new Date(t.created_at),
+        href: '/workbench',
+      })
+    }
+  }
+
+  if (healthRes.status === 'fulfilled') {
+    for (const sys of healthRes.value.systems.filter((s) => s.status !== 'up')) {
+      results.push({
+        id: `health-${sys.name}`,
+        type: 'error',
+        source: 'Health',
+        title: `${sys.name} integration is down`,
+        message: sys.detail || 'Health check failing — check credentials and connectivity.',
+        timestamp: new Date(),
+        href: '/data-manager',
+      })
+    }
+  }
+
+  return results.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+}
 
 const typeConfig: Record<
   NotificationType,
-  { icon: React.ElementType; color: string; bg: string }
+  { icon: React.ElementType; color: string; bg: string; label: string; badge: string }
 > = {
-  info: { icon: Icons.info, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+  info: {
+    icon: Icons.info,
+    color: 'text-blue-500',
+    bg: 'bg-blue-500/10',
+    label: 'Info',
+    badge: 'bg-blue-500/15 text-blue-500',
+  },
   success: {
     icon: Icons.checkCircle,
     color: 'text-emerald-500',
     bg: 'bg-emerald-500/10',
+    label: 'Resolved',
+    badge: 'bg-emerald-500/15 text-emerald-500',
   },
   warning: {
     icon: Icons.alertTriangle,
     color: 'text-amber-500',
     bg: 'bg-amber-500/10',
+    label: 'Warning',
+    badge: 'bg-amber-500/15 text-amber-500',
   },
   error: {
     icon: Icons.alertCircle,
     color: 'text-red-500',
     bg: 'bg-red-500/10',
+    label: 'Critical',
+    badge: 'bg-red-500/15 text-red-500',
   },
+}
+
+const sourceConfig: Record<NotificationSource, { icon: React.ElementType; label: string }> = {
+  Incident: { icon: Icons.alertTriangle, label: 'Incident' },
+  Workbench: { icon: Icons.workbench, label: 'Workbench' },
+  Health: { icon: Icons.network, label: 'System Health' },
 }
 
 function formatRelativeTime(date: Date): string {
@@ -88,70 +191,92 @@ function formatRelativeTime(date: Date): string {
 
 interface NotificationItemProps {
   notification: Notification
-  onMarkAsRead: (id: string) => void
+  read: boolean
+  onOpen: (id: string) => void
 }
 
-function NotificationItem({
-  notification,
-  onMarkAsRead,
-}: NotificationItemProps) {
+function NotificationItem({ notification, read, onOpen }: NotificationItemProps) {
   const config = typeConfig[notification.type]
+  const source = sourceConfig[notification.source]
   const Icon = config.icon
+  const SourceIcon = source.icon
 
   return (
-    <div
+    <Link
+      href={notification.href}
+      onClick={() => onOpen(notification.id)}
       className={cn(
-        'flex cursor-pointer gap-3 rounded-xl p-3',
+        'group flex cursor-pointer gap-3 rounded-xl border p-4',
         'transition-all duration-200 ease-out',
-        'hover:scale-[1.02] active:scale-[0.98]',
-        notification.read
-          ? 'opacity-60 hover:opacity-100'
-          : 'hover:bg-brand-cornflower/5 hover:shadow-sm'
+        'hover:shadow-sm',
+        read
+          ? 'border-transparent opacity-60 hover:border-border/50 hover:opacity-100'
+          : 'border-border/40 bg-muted/10 hover:border-brand-cornflower/30 hover:bg-brand-cornflower/5'
       )}
-      onClick={() => onMarkAsRead(notification.id)}
     >
-      <div
-        className={cn(
-          'flex-shrink-0 rounded-lg p-2 transition-transform duration-200',
-          config.bg,
-          'group-hover:scale-110'
-        )}
-      >
-        <Icon className={cn('h-4 w-4', config.color)} strokeWidth={1.5} />
+      <div className={cn('flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg', config.bg)}>
+        <Icon className={cn('h-5 w-5', config.color)} strokeWidth={1.5} />
       </div>
-      <div className='min-w-0 flex-1'>
-        <div className='flex items-start justify-between gap-2'>
-          <p className='truncate text-sm font-medium text-foreground'>
-            {notification.title}
-          </p>
-          {!notification.read && (
-            <span className='mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-brand-cornflower' />
-          )}
+      <div className='min-w-0 flex-1 space-y-1.5'>
+        <div className='flex items-center gap-2'>
+          <span className={cn('flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', config.badge)}>
+            {config.label}
+          </span>
+          <span className='flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground'>
+            <SourceIcon className='h-3 w-3' />
+            {source.label}
+          </span>
+          {!read && <span className='ml-auto h-2 w-2 shrink-0 animate-pulse rounded-full bg-brand-cornflower' />}
         </div>
-        <p className='mt-0.5 line-clamp-2 text-xs text-muted-foreground'>
-          {notification.message}
-        </p>
-        <p className='mt-1 text-[10px] text-muted-foreground/60'>
-          {formatRelativeTime(notification.timestamp)}
-        </p>
+        <p className='text-sm font-medium leading-snug text-foreground'>{notification.title}</p>
+        <p className='text-xs leading-relaxed text-muted-foreground'>{notification.message}</p>
+        <div className='flex items-center justify-between pt-0.5'>
+          <p className='text-[10px] text-muted-foreground/60'>{formatRelativeTime(notification.timestamp)}</p>
+          <span className='flex items-center gap-0.5 text-[10px] font-medium text-brand-cornflower opacity-0 transition-opacity group-hover:opacity-100'>
+            View <Icons.chevronRight className='h-3 w-3' />
+          </span>
+        </div>
       </div>
-    </div>
+    </Link>
   )
 }
 
 export function NotificationCenter() {
-  const [notifications, setNotifications] = React.useState(mockNotifications)
+  const [notifications, setNotifications] = React.useState<Notification[]>([])
+  const [readIds, setReadIds] = React.useState<Set<string>>(() => loadReadIds())
 
-  const unreadCount = notifications.filter((n) => !n.read).length
+  const load = React.useCallback(async () => {
+    try {
+      const items = await fetchLiveNotifications()
+      setNotifications(items)
+    } catch {
+      // silent — never fabricate notifications on fetch failure
+    }
+  }, [])
+
+  React.useEffect(() => {
+    load()
+    const interval = setInterval(load, POLL_MS)
+    return () => clearInterval(interval)
+  }, [load])
+
+  const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length
 
   const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    )
+    setReadIds((prev) => {
+      const next = new Set(prev).add(id)
+      saveReadIds(next)
+      return next
+    })
   }
 
   const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+    setReadIds((prev) => {
+      const next = new Set(prev)
+      notifications.forEach((n) => next.add(n.id))
+      saveReadIds(next)
+      return next
+    })
   }
 
   return (
@@ -178,64 +303,55 @@ export function NotificationCenter() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align='end' className='w-80 p-0'>
+      <PopoverContent align='end' className='w-[420px] p-0'>
         {/* Header */}
-        <div className='flex items-center justify-between border-b border-border/50 px-4 py-3'>
-          <h3 className='font-display font-semibold text-foreground'>
-            Notifications
-          </h3>
+        <div className='flex items-center justify-between border-b border-border/50 px-5 py-4'>
+          <div>
+            <h3 className='font-display font-semibold text-foreground'>Notifications</h3>
+            <p className='mt-0.5 text-xs text-muted-foreground'>
+              {unreadCount > 0
+                ? `${unreadCount} unread — live from Incidents, Workbench, and system health`
+                : 'Live from Incidents, Workbench, and system health'}
+            </p>
+          </div>
           {unreadCount > 0 && (
             <Button
               variant='link'
               size='sm'
               onClick={markAllAsRead}
-              className='h-auto p-0 text-xs text-brand-cornflower'
+              className='h-auto shrink-0 p-0 text-xs text-brand-cornflower'
             >
-              Mark all as read
+              Mark all read
             </Button>
           )}
         </div>
 
         {/* Notification list */}
-        <div className='max-h-[300px] overflow-y-auto p-2'>
+        <div className='max-h-[480px] overflow-y-auto p-3'>
           {notifications.length === 0 ? (
-            <div className='py-8 text-center'>
-              <div className='mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted/50'>
-                <Icons.checkCircle className='h-6 w-6 text-muted-foreground' />
+            <div className='py-10 text-center'>
+              <div className='mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10'>
+                <Icons.checkCircle className='h-6 w-6 text-emerald-500' />
               </div>
-              <p className='text-sm font-medium text-foreground'>
-                All caught up!
-              </p>
+              <p className='text-sm font-medium text-foreground'>All caught up!</p>
               <p className='mt-1 text-xs text-muted-foreground'>
-                No new notifications
+                No open incidents, workbench items, or system issues
               </p>
             </div>
           ) : (
-            <div className='space-y-1'>
+            <div className='space-y-2'>
               {notifications.map((notification) => (
                 <NotificationItem
                   key={notification.id}
                   notification={notification}
-                  onMarkAsRead={markAsRead}
+                  read={readIds.has(notification.id)}
+                  onOpen={markAsRead}
                 />
               ))}
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        {notifications.length > 0 && (
-          <div className='border-t border-border/50 p-2'>
-            <Button
-              variant='ghost'
-              className='w-full text-brand-navy'
-            >
-              View all notifications
-            </Button>
-          </div>
-        )}
       </PopoverContent>
     </Popover>
   )
 }
-

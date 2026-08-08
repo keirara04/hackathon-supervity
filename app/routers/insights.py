@@ -103,6 +103,13 @@ async def get_insights(limit: int = 500):
                         "to measure auto-resolution lift."
                     ),
                     "confidence": vip_pct / 100,
+                    "route": "/ai/policies?highlight=vip_always_escalate",
+                    "guide": (
+                        "Consider a VIP fast-track instead of a blanket escalation: turn off "
+                        "vip_always_escalate so high-confidence VIP tickets can auto-resolve, "
+                        "and rely on the auto-score/KB-safety gates to still catch low-confidence "
+                        "ones for human review."
+                    ),
                 }
             )
 
@@ -122,6 +129,12 @@ async def get_insights(limit: int = 500):
                         "just below the threshold, consider lowering min_auto_score slightly."
                     ),
                     "confidence": 0.6,
+                    "route": "/ai/policies?highlight=min_auto_score",
+                    "guide": (
+                        "Check where these near-miss scores actually cluster before changing "
+                        "anything — if most sit just under the current min_auto_score, lower it "
+                        "slightly and re-run to see the effect on auto-resolution rate."
+                    ),
                 }
             )
 
@@ -141,6 +154,12 @@ async def get_insights(limit: int = 500):
                         "as auto-safe to unlock auto-resolution."
                     ),
                     "confidence": 0.5,
+                    "route": "/knowledge-base",
+                    "guide": (
+                        "Go through the KB articles behind these escalations and check their "
+                        "x_auto_safe flag — for the ones where auto-resolution is genuinely safe, "
+                        "mark them auto-safe so matching tickets stop escalating unnecessarily."
+                    ),
                 }
             )
 
@@ -170,6 +189,8 @@ async def get_insights(limit: int = 500):
                         "policy tuning would have the most impact."
                     ),
                     "confidence": 0.7,
+                    "route": None,
+                    "guide": None,
                 }
             )
 
@@ -186,6 +207,8 @@ async def get_insights(limit: int = 500):
                 "description": f"Across {len(resolved_runs)} resolved tickets, average MTTR is {avg_mttr} minutes.",
                 "action": "Track this trend over time as a headline dashboard KPI.",
                 "confidence": 0.8,
+                "route": None,
+                "guide": None,
             }
         )
 
@@ -208,6 +231,7 @@ async def get_insights(limit: int = 500):
             top_pct = _pct(top_count, len(overrides))
             patch = SUGGESTED_PATCHES.get(top_hit)
             if patch and top_pct >= 50:
+                patch_key = list(patch.keys())[0]
                 insights.append(
                     {
                         "type": "self_learning",
@@ -218,9 +242,15 @@ async def get_insights(limit: int = 500):
                             f"same policy trigger: '{top_hit}'. Humans are consistently disagreeing with what "
                             f"this policy setting forces the AI to do."
                         ),
-                        "action": f"Apply the suggested change to {list(patch.keys())[0]}, or keep reviewing manually.",
+                        "action": f"Apply the suggested change to {patch_key}, or keep reviewing manually.",
                         "confidence": top_pct / 100,
                         "suggested_patch": patch,
+                        "route": f"/ai/policies?highlight={patch_key}",
+                        "guide": (
+                            f"Humans keep overriding '{top_hit}' — the suggested fix is "
+                            f"{patch_key} = {patch[patch_key]!r}. Review it here and apply if it "
+                            f"matches what you're seeing in the override history."
+                        ),
                     }
                 )
 
@@ -248,6 +278,11 @@ async def get_insights(limit: int = 500):
                 ),
                 "action": "Compare against team_roster on-call capacity to see if staffing covers projected volume.",
                 "confidence": 0.5,
+                "route": "/team-roster",
+                "guide": (
+                    f"Projected volume is roughly {round(avg_volume)} tickets on {next_day}. "
+                    "Check on-call capacity here against that number before it hits."
+                ),
             }
         )
 
@@ -350,10 +385,14 @@ async def get_synthesis_insight(force: bool = False):
                 "hit combined with a department's low auto-rate, or override "
                 "patterns combined with volume forecast). Do NOT invent any "
                 "numbers, tickets, or facts not present in the given stats. "
+                "Also pick the ONE page most relevant to acting on this insight, from exactly "
+                'these options: "policies" (policy/routing levers), "knowledge-base" '
+                '(KB article safety), "team-roster" (staffing/capacity), or "none" (no '
+                "single page fixes this). "
                 "Respond with ONLY a JSON object, no prose, no markdown fences: "
                 '{"title": string, "description": string, "action": string, '
                 '"severity": "info"|"warning"|"critical", "confidence": number '
-                "between 0 and 1}."
+                'between 0 and 1, "route": "policies"|"knowledge-base"|"team-roster"|"none"}.'
             ),
         },
         {
@@ -374,6 +413,13 @@ async def get_synthesis_insight(force: bool = False):
     if not parsed or not parsed.get("title") or not parsed.get("description"):
         return {"insight": None, "cached": False}
 
+    ROUTE_MAP = {
+        "policies": "/ai/policies",
+        "knowledge-base": "/knowledge-base",
+        "team-roster": "/team-roster",
+    }
+    route = ROUTE_MAP.get(parsed.get("route"))
+
     insight = {
         "type": "ai_synthesis",
         "severity": parsed.get("severity", "info"),
@@ -381,6 +427,8 @@ async def get_synthesis_insight(force: bool = False):
         "description": parsed["description"],
         "action": parsed.get("action", ""),
         "confidence": parsed.get("confidence", 0.5),
+        "route": route,
+        "guide": parsed.get("action") if route else None,
     }
     _synthesis_cache = insight
     _synthesis_cache_ts = time.monotonic()

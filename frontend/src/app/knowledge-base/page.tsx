@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { cn } from '@/lib/utils'
 import { apiClient } from '@/lib/api-client'
 import { useSearchFilter } from '@/hooks'
+import { GuideBanner } from '@/components/GuideBanner'
 
 interface KBArticle {
   article_id: string
@@ -34,6 +36,15 @@ const ACTION_STYLES: Record<string, string> = {
 }
 
 export default function KnowledgeBasePage() {
+  return (
+    <Suspense fallback={null}>
+      <KnowledgeBasePageInner />
+    </Suspense>
+  )
+}
+
+function KnowledgeBasePageInner() {
+  const searchParams = useSearchParams()
   const [articles, setArticles] = useState<KBArticle[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -95,6 +106,8 @@ export default function KnowledgeBasePage() {
           <span className='hidden sm:inline'>Refresh</span>
         </Button>
       </motion.div>
+
+      <GuideBanner guide={searchParams.get('guide')} />
 
       {error && (
         <motion.div variants={itemVariants}>
