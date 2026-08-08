@@ -96,8 +96,12 @@ function RunLogPageInner() {
     load()
   }, [load])
 
+  // Path column displays verdict, not the raw path field — path and verdict
+  // can disagree on real data (verdict is the up-to-date routing decision).
+  const displayPath = (t: RunLogTicket) => t.verdict ?? 'pending'
+
   const pathAndRunFiltered = tickets.filter(
-    (t) => (pathFilter === 'all' || t.path === pathFilter) && (runIdFilter === null || t.run_id === runIdFilter)
+    (t) => (pathFilter === 'all' || displayPath(t) === pathFilter) && (runIdFilter === null || t.run_id === runIdFilter)
   )
   const { query, setQuery, filtered: filteredTickets } = useSearchFilter(
     pathAndRunFiltered,
@@ -230,10 +234,10 @@ function RunLogPageInner() {
                     <span
                       className={cn(
                         'rounded-full px-2 py-0.5 text-xs font-medium',
-                        PATH_STYLES[t.path ?? ''] ?? 'bg-muted text-muted-foreground'
+                        PATH_STYLES[displayPath(t)] ?? 'bg-muted text-muted-foreground'
                       )}
                     >
-                      {t.path ?? 'unknown'}
+                      {displayPath(t)}
                     </span>
                   </div>
                   <p className='mt-1.5 text-sm text-muted-foreground'>{t.diagnosis ?? 'No diagnosis'}</p>
@@ -276,10 +280,10 @@ function RunLogPageInner() {
                         <span
                           className={cn(
                             'rounded-full px-2 py-0.5 text-xs font-medium',
-                            PATH_STYLES[t.path ?? ''] ?? 'bg-muted text-muted-foreground'
+                            PATH_STYLES[displayPath(t)] ?? 'bg-muted text-muted-foreground'
                           )}
                         >
-                          {t.path ?? 'unknown'}
+                          {displayPath(t)}
                         </span>
                       </td>
                       <td className='py-2 pr-4 text-muted-foreground'>{t.department ?? '—'}</td>
