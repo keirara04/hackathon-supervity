@@ -58,7 +58,7 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent side='left' className='w-72 p-0 md:hidden'>
         {/* Header */}
-        <SheetHeader className='flex h-20 flex-row items-center justify-between border-b border-black/[0.04] px-4'>
+        <SheetHeader className='flex h-20 shrink-0 flex-row items-center justify-between border-b border-black/[0.04] px-4'>
           <Link
             href='/'
             className='flex items-center gap-3'
@@ -80,7 +80,7 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
 
         {/* Navigation */}
         <nav
-          className='flex-1 overflow-y-auto p-4'
+          className='min-h-0 flex-1 overflow-y-auto p-4'
           aria-label='Mobile navigation'
         >
           {navItems.map((section, sectionIndex) => (
