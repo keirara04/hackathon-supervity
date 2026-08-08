@@ -77,6 +77,7 @@ export const navItems: NavSection[] = [
       { href: '/knowledge-base', label: 'Knowledge Base', icon: Icons.bookmark },
       { href: '/incidents', label: 'Incidents', icon: Icons.alertTriangle },
       { href: '/team-roster', label: 'Team Roster', icon: Icons.users },
+      { href: '/users-directory', label: 'Users Directory', icon: Icons.user },
     ],
   },
   {

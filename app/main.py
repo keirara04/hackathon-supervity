@@ -51,6 +51,7 @@ from .routers import (
     run_log_router,
     team_roster_router,
     triage_queue_router,
+    users_directory_router,
     workbench_router,
     zendesk_router,
 )
@@ -200,6 +201,9 @@ api_router.include_router(zendesk_router)
 
 # Team Roster — on-call agents/capacity, backs Workbench assignment
 api_router.include_router(team_roster_router)
+
+# Users Directory — full CRUD over the identity source Triage resolves against
+api_router.include_router(users_directory_router)
 
 
 # =============================================================================

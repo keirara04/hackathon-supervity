@@ -5,8 +5,10 @@ import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Icons } from '@/components/ui/icons'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { apiClient } from '@/lib/api-client'
+import { useSearchFilter } from '@/hooks'
 
 interface TriageItem {
   issue_key: string
@@ -38,6 +40,12 @@ export default function TriageQueuePage() {
   const [items, setItems] = useState<TriageItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [detailItem, setDetailItem] = useState<TriageItem | null>(null)
+
+  const { query, setQuery, filtered: visibleItems } = useSearchFilter(
+    items,
+    (item) => `${item.issue_key} ${item.summary} ${item.department ?? ''} ${item.cluster_key ?? ''}`
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -88,6 +96,16 @@ export default function TriageQueuePage() {
         </motion.div>
       )}
 
+      <motion.div variants={itemVariants} className='relative'>
+        <Icons.search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder='Search ticket, summary, department, cluster...'
+          className='w-full rounded-full border border-border bg-muted/10 py-2 pl-9 pr-4 text-sm outline-none focus:border-primary/50 sm:max-w-sm'
+        />
+      </motion.div>
+
       <motion.div variants={itemVariants}>
         <Card>
           <CardHeader>
@@ -97,8 +115,12 @@ export default function TriageQueuePage() {
           <CardContent>
             {/* Mobile: stacked cards, no horizontal scrolling */}
             <div className='space-y-3 sm:hidden'>
-              {items.map((item) => (
-                <div key={item.issue_key} className='rounded-lg border border-border p-3'>
+              {visibleItems.map((item) => (
+                <div
+                  key={item.issue_key}
+                  onClick={() => setDetailItem(item)}
+                  className='cursor-pointer rounded-lg border border-border p-3 hover:bg-muted/10'
+                >
                   <div className='flex items-center justify-between'>
                     <span className='font-medium'>
                       {item.issue_key}
@@ -138,7 +160,7 @@ export default function TriageQueuePage() {
                   )}
                 </div>
               ))}
-              {items.length === 0 && !loading && (
+              {visibleItems.length === 0 && !loading && (
                 <p className='py-8 text-center text-sm text-muted-foreground'>Queue is empty.</p>
               )}
             </div>
@@ -158,8 +180,12 @@ export default function TriageQueuePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item) => (
-                    <tr key={item.issue_key} className='border-b border-border/50'>
+                  {visibleItems.map((item) => (
+                    <tr
+                      key={item.issue_key}
+                      onClick={() => setDetailItem(item)}
+                      className='cursor-pointer border-b border-border/50 hover:bg-muted/10'
+                    >
                       <td className='py-2 pr-4 font-medium'>
                         {item.issue_key}
                         {item.is_vip && (
@@ -210,7 +236,7 @@ export default function TriageQueuePage() {
                   ))}
                 </tbody>
               </table>
-              {items.length === 0 && !loading && (
+              {visibleItems.length === 0 && !loading && (
                 <p className='py-8 text-center text-sm text-muted-foreground'>Queue is empty.</p>
               )}
             </div>
@@ -218,6 +244,31 @@ export default function TriageQueuePage() {
 
         </Card>
       </motion.div>
+
+      <Dialog open={detailItem !== null} onOpenChange={(open) => !open && setDetailItem(null)}>
+        <DialogContent>
+          {detailItem && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {detailItem.issue_key}
+                  {detailItem.is_vip && <span className='ml-2 text-xs font-semibold uppercase text-brand-purple'>VIP</span>}
+                </DialogTitle>
+                <DialogDescription>{detailItem.summary}</DialogDescription>
+              </DialogHeader>
+              <div className='grid grid-cols-2 gap-3 text-xs text-muted-foreground'>
+                <p><span className='font-semibold text-foreground'>Priority tier:</span> {detailItem.priority_tier ?? '—'}</p>
+                <p><span className='font-semibold text-foreground'>Priority score:</span> {detailItem.priority_score ?? '—'}</p>
+                <p><span className='font-semibold text-foreground'>SLA state:</span> {detailItem.sla_state ?? 'unknown'}</p>
+                <p><span className='font-semibold text-foreground'>Hours to breach:</span> {detailItem.hours_to_breach?.toFixed(1) ?? '—'}</p>
+                <p><span className='font-semibold text-foreground'>Department:</span> {detailItem.department ?? '—'}</p>
+                <p><span className='font-semibold text-foreground'>Channel:</span> {detailItem.channel ?? '—'}</p>
+                <p><span className='font-semibold text-foreground'>Cluster:</span> {detailItem.cluster_key ?? '—'}</p>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }

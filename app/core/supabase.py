@@ -98,6 +98,19 @@ async def sb_post(table: str, body: dict | list[dict]) -> list[dict]:
     return resp.json()
 
 
+async def sb_delete(table: str, params: dict) -> list[dict]:
+    """DELETE rows matching `params` filters. Returns the deleted rows."""
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.delete(
+            f"{SUPABASE_URL}/rest/v1/{table}",
+            headers=_headers(prefer="return=representation"),
+            params=params,
+        )
+    if resp.status_code >= 300:
+        raise SupabaseError(resp.status_code, resp.text)
+    return resp.json()
+
+
 async def sb_count(table: str) -> int | None:
     """Row count for a table via PostgREST's Content-Range header — no rows
     transferred (limit=0), just the count. Returns None if the count can't

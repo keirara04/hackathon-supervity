@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Icons } from '@/components/ui/icons'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { apiClient } from '@/lib/api-client'
+import { useSearchFilter } from '@/hooks'
 
 interface KBArticle {
   article_id: string
@@ -37,6 +39,7 @@ export default function KnowledgeBasePage() {
   const [error, setError] = useState<string | null>(null)
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [pending, setPending] = useState<Set<string>>(new Set())
+  const [detailArticle, setDetailArticle] = useState<KBArticle | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -72,7 +75,11 @@ export default function KnowledgeBasePage() {
   }
 
   const categories = ['all', ...Array.from(new Set(articles.map((a) => a.category)))]
-  const filtered = categoryFilter === 'all' ? articles : articles.filter((a) => a.category === categoryFilter)
+  const categoryFiltered = categoryFilter === 'all' ? articles : articles.filter((a) => a.category === categoryFilter)
+  const { query, setQuery, filtered } = useSearchFilter(
+    categoryFiltered,
+    (a) => `${a.title} ${a.root_cause} ${a.workaround} ${a.category} ${a.article_id}`
+  )
 
   return (
     <motion.div className='space-y-8' variants={containerVariants} initial='hidden' animate='visible'>
@@ -100,6 +107,16 @@ export default function KnowledgeBasePage() {
         </motion.div>
       )}
 
+      <motion.div variants={itemVariants} className='relative'>
+        <Icons.search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder='Search title, root cause, workaround, category...'
+          className='w-full rounded-full border border-border bg-muted/10 py-2 pl-9 pr-4 text-sm outline-none focus:border-primary/50 sm:max-w-sm'
+        />
+      </motion.div>
+
       <motion.div variants={itemVariants} className='flex flex-wrap gap-2'>
         {categories.map((cat) => (
           <button
@@ -120,7 +137,7 @@ export default function KnowledgeBasePage() {
       <div className='grid gap-4 md:grid-cols-2'>
         {filtered.map((article) => (
           <motion.div key={article.article_id} variants={itemVariants}>
-            <Card className='h-full'>
+            <Card className='h-full cursor-pointer hover:bg-muted/10' onClick={() => setDetailArticle(article)}>
               <CardHeader>
                 <div className='flex items-start justify-between gap-3'>
                   <div>
@@ -137,7 +154,7 @@ export default function KnowledgeBasePage() {
                       </span>
                     </CardDescription>
                   </div>
-                  <div className='flex shrink-0 items-center gap-2'>
+                  <div className='flex shrink-0 items-center gap-2' onClick={(e) => e.stopPropagation()}>
                     <span className='text-xs text-muted-foreground'>Auto-safe</span>
                     <Switch
                       checked={article.x_auto_safe}
@@ -169,6 +186,34 @@ export default function KnowledgeBasePage() {
           </Card>
         </motion.div>
       )}
+
+      <Dialog open={detailArticle !== null} onOpenChange={(open) => !open && setDetailArticle(null)}>
+        <DialogContent>
+          {detailArticle && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{detailArticle.title}</DialogTitle>
+                <DialogDescription>
+                  {detailArticle.article_id} · {detailArticle.category} · {detailArticle.action_type}
+                </DialogDescription>
+              </DialogHeader>
+              <div className='space-y-3 text-sm'>
+                <div>
+                  <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>Root cause</p>
+                  <p className='mt-1'>{detailArticle.root_cause}</p>
+                </div>
+                <div>
+                  <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>Workaround</p>
+                  <p className='mt-1'>{detailArticle.workaround}</p>
+                </div>
+                <p className='text-xs text-muted-foreground'>
+                  Auto-safe: <span className='font-semibold text-foreground'>{detailArticle.x_auto_safe ? 'Yes' : 'No'}</span>
+                </p>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }

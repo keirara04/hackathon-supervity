@@ -5,8 +5,10 @@ import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Icons } from '@/components/ui/icons'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { apiClient } from '@/lib/api-client'
+import { useSearchFilter } from '@/hooks'
 
 interface Agent {
   id: number
@@ -34,6 +36,12 @@ export default function TeamRosterPage() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [detailAgent, setDetailAgent] = useState<Agent | null>(null)
+
+  const { query, setQuery, filtered: visibleAgents } = useSearchFilter(
+    agents,
+    (a) => `${a.agent_name} ${a.team ?? ''} ${a.role ?? ''} ${a.region ?? ''}`
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -52,7 +60,7 @@ export default function TeamRosterPage() {
     load()
   }, [load])
 
-  const teams = Array.from(new Set(agents.map((a) => a.team).filter(Boolean))) as string[]
+  const teams = Array.from(new Set(visibleAgents.map((a) => a.team).filter(Boolean))) as string[]
 
   return (
     <motion.div className='space-y-8' variants={containerVariants} initial='hidden' animate='visible'>
@@ -80,16 +88,26 @@ export default function TeamRosterPage() {
         </motion.div>
       )}
 
+      <motion.div variants={itemVariants} className='relative'>
+        <Icons.search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder='Search agent, team, role, region...'
+          className='w-full rounded-full border border-border bg-muted/10 py-2 pl-9 pr-4 text-sm outline-none focus:border-primary/50 sm:max-w-sm'
+        />
+      </motion.div>
+
       {teams.map((team) => (
         <motion.div key={team} variants={itemVariants}>
           <h2 className='mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground'>{team}</h2>
           <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
-            {agents
+            {visibleAgents
               .filter((a) => a.team === team)
               .map((agent) => {
                 const utilization = agent.open_ticket_cap > 0 ? agent.current_load / agent.open_ticket_cap : 0
                 return (
-                  <Card key={agent.id}>
+                  <Card key={agent.id} onClick={() => setDetailAgent(agent)} className='cursor-pointer hover:bg-muted/10'>
                     <CardHeader className='pb-2'>
                       <div className='flex items-center justify-between'>
                         <CardTitle className='text-sm'>{agent.agent_name}</CardTitle>
@@ -138,6 +156,39 @@ export default function TeamRosterPage() {
           </Card>
         </motion.div>
       )}
+
+      {!loading && agents.length > 0 && visibleAgents.length === 0 && (
+        <motion.div variants={itemVariants}>
+          <Card>
+            <CardContent className='py-16 text-center text-sm text-muted-foreground'>No agents match this search.</CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      <Dialog open={detailAgent !== null} onOpenChange={(open) => !open && setDetailAgent(null)}>
+        <DialogContent>
+          {detailAgent && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{detailAgent.agent_name}</DialogTitle>
+                <DialogDescription>
+                  {detailAgent.role} · {detailAgent.team ?? 'no team'}
+                </DialogDescription>
+              </DialogHeader>
+              <div className='grid grid-cols-2 gap-3 text-xs text-muted-foreground'>
+                <p><span className='font-semibold text-foreground'>Email:</span> {detailAgent.agent_email ?? '—'}</p>
+                <p><span className='font-semibold text-foreground'>Region:</span> {detailAgent.region ?? '—'}</p>
+                <p><span className='font-semibold text-foreground'>Shift:</span> {detailAgent.shift ?? '—'}</p>
+                <p><span className='font-semibold text-foreground'>Component:</span> {detailAgent.component ?? '—'}</p>
+                <p><span className='font-semibold text-foreground'>Assignment group:</span> {detailAgent.assignment_group ?? '—'}</p>
+                <p><span className='font-semibold text-foreground'>On-call:</span> {detailAgent.on_call ? 'Yes' : 'No'}</p>
+                <p><span className='font-semibold text-foreground'>Active:</span> {detailAgent.active ? 'Yes' : 'No'}</p>
+                <p><span className='font-semibold text-foreground'>Load:</span> {detailAgent.current_load} / {detailAgent.open_ticket_cap}</p>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }

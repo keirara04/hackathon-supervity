@@ -5,8 +5,10 @@ import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Icons } from '@/components/ui/icons'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { apiClient } from '@/lib/api-client'
+import { useSearchFilter } from '@/hooks'
 
 interface RunMetric {
   run_id: string
@@ -54,6 +56,8 @@ export default function RunLogPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pathFilter, setPathFilter] = useState<string>('all')
+  const [runIdFilter, setRunIdFilter] = useState<string | null>(null)
+  const [detailTicket, setDetailTicket] = useState<RunLogTicket | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -76,7 +80,13 @@ export default function RunLogPage() {
     load()
   }, [load])
 
-  const filteredTickets = pathFilter === 'all' ? tickets : tickets.filter((t) => t.path === pathFilter)
+  const pathAndRunFiltered = tickets.filter(
+    (t) => (pathFilter === 'all' || t.path === pathFilter) && (runIdFilter === null || t.run_id === runIdFilter)
+  )
+  const { query, setQuery, filtered: filteredTickets } = useSearchFilter(
+    pathAndRunFiltered,
+    (t) => `${t.ticket_id} ${t.department ?? ''} ${t.category ?? ''} ${t.diagnosis ?? ''}`
+  )
 
   return (
     <motion.div className='space-y-8' variants={containerVariants} initial='hidden' animate='visible'>
@@ -102,11 +112,36 @@ export default function RunLogPage() {
         </motion.div>
       )}
 
+      <motion.div variants={itemVariants} className='relative'>
+        <Icons.search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder='Search ticket, department, category, diagnosis...'
+          className='w-full rounded-full border border-border bg-muted/10 py-2 pl-9 pr-4 text-sm outline-none focus:border-primary/50 sm:max-w-sm'
+        />
+      </motion.div>
+
       <motion.div variants={itemVariants}>
-        <h2 className='mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground'>Runs</h2>
+        <div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
+          <h2 className='text-sm font-semibold uppercase tracking-wide text-muted-foreground'>Runs</h2>
+          {runIdFilter && (
+            <button
+              onClick={() => setRunIdFilter(null)}
+              className='flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary'
+            >
+              Filtered by run {runIdFilter.slice(0, 8)}
+              <Icons.close className='h-3 w-3' />
+            </button>
+          )}
+        </div>
         <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
           {runs.map((run) => (
-            <Card key={run.run_id}>
+            <Card
+              key={run.run_id}
+              onClick={() => setRunIdFilter(runIdFilter === run.run_id ? null : run.run_id)}
+              className={cn('cursor-pointer transition-colors hover:bg-muted/10', runIdFilter === run.run_id && 'ring-2 ring-primary/50')}
+            >
               <CardHeader className='pb-2'>
                 <CardTitle className='truncate text-sm font-mono'>{run.run_id.slice(0, 8)}</CardTitle>
                 <CardDescription>{new Date(run.run_started_at).toLocaleString()}</CardDescription>
@@ -169,7 +204,11 @@ export default function RunLogPage() {
             {/* Mobile: stacked cards, no horizontal scrolling */}
             <div className='space-y-3 sm:hidden'>
               {filteredTickets.map((t) => (
-                <div key={t.id} className='rounded-lg border border-border p-3'>
+                <div
+                  key={t.id}
+                  onClick={() => setDetailTicket(t)}
+                  className='cursor-pointer rounded-lg border border-border p-3 hover:bg-muted/10'
+                >
                   <div className='flex items-center justify-between'>
                     <span className='font-medium'>{t.ticket_id}</span>
                     <span
@@ -211,7 +250,11 @@ export default function RunLogPage() {
                 </thead>
                 <tbody>
                   {filteredTickets.map((t) => (
-                    <tr key={t.id} className='border-b border-border/50'>
+                    <tr
+                      key={t.id}
+                      onClick={() => setDetailTicket(t)}
+                      className='cursor-pointer border-b border-border/50 hover:bg-muted/10'
+                    >
                       <td className='py-2 pr-4 font-medium'>{t.ticket_id}</td>
                       <td className='py-2 pr-4'>
                         <span
@@ -239,6 +282,34 @@ export default function RunLogPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      <Dialog open={detailTicket !== null} onOpenChange={(open) => !open && setDetailTicket(null)}>
+        <DialogContent>
+          {detailTicket && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{detailTicket.ticket_id}</DialogTitle>
+                <DialogDescription>Run {detailTicket.run_id}</DialogDescription>
+              </DialogHeader>
+              <div className='space-y-3 text-sm'>
+                <div>
+                  <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>Diagnosis</p>
+                  <p className='mt-1'>{detailTicket.diagnosis || 'No diagnosis recorded'}</p>
+                </div>
+                <div className='grid grid-cols-2 gap-3 text-xs text-muted-foreground'>
+                  <p><span className='font-semibold text-foreground'>Path:</span> {detailTicket.path ?? 'unknown'}</p>
+                  <p><span className='font-semibold text-foreground'>Verdict:</span> {detailTicket.verdict ?? '—'}</p>
+                  <p><span className='font-semibold text-foreground'>Department:</span> {detailTicket.department ?? '—'}</p>
+                  <p><span className='font-semibold text-foreground'>Category:</span> {detailTicket.category ?? '—'}</p>
+                  <p><span className='font-semibold text-foreground'>MTTR:</span> {detailTicket.mttr_minutes ?? '—'} min</p>
+                  <p><span className='font-semibold text-foreground'>Entered:</span> {new Date(detailTicket.entered_at).toLocaleString()}</p>
+                  <p><span className='font-semibold text-foreground'>Resolved:</span> {detailTicket.resolved_at ? new Date(detailTicket.resolved_at).toLocaleString() : '—'}</p>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }

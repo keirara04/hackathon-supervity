@@ -1,56 +1,79 @@
 # app/routers/insights.py
 """
 AI Insights — computed live from policy_eval_log + run_log, not seeded demo
-data. Deterministic aggregation for now; each insight carries a severity
-and a concrete action path per the Command Center Guide.
+data. Deterministic aggregation is the reliable base layer; one additional
+insight per load is LLM-synthesized (OpenRouter) from the same aggregated
+stats, correlating signals a single per-metric rule can't. A separate
+on-demand /diagnose endpoint lets the frontend ask for a deeper, grounded
+LLM diagnosis of any one insight — only called when a user clicks for it,
+not precomputed for every insight.
 """
 
+import asyncio
+import json
 import logging
+import time
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
+from ..core.openrouter import call_openrouter, extract_json, openrouter_configured
 from ..core.supabase import SupabaseError, sb_get
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/insights", tags=["Insights"])
 
+# Single-entry TTL cache for the AI-synthesized insight — this is a
+# single-tenant admin dashboard, so one global slot is enough. Avoids paying
+# OpenRouter latency on every page load/refresh within the window.
+_SYNTHESIS_CACHE_TTL = 60.0
+_synthesis_cache: dict | None = None
+_synthesis_cache_ts: float = 0.0
+
 
 def _pct(n: int, total: int) -> float:
     return round(100 * n / total, 1) if total else 0.0
 
 
-@router.get("")
-async def get_insights(limit: int = 500):
+async def _fetch_source_rows(limit: int = 500):
     try:
-        evals = await sb_get(
-            "policy_eval_log",
-            {
-                "select": "verdict,policy_hits,reason,inputs",
-                "order": "evaluated_at.desc",
-                "limit": str(limit),
-            },
-        )
-        runs = await sb_get(
-            "run_log",
-            {
-                "select": "path,mttr_minutes,sla_state_before,department,category,entered_at",
-                "order": "entered_at.desc",
-                "limit": str(limit),
-            },
-        )
-        overrides = await sb_get(
-            "workbench_tasks",
-            {
-                "select": "status,human_decision,context",
-                "status": "in.(rejected,modified)",
-                "limit": str(limit),
-            },
+        evals, runs, overrides = await asyncio.gather(
+            sb_get(
+                "policy_eval_log",
+                {
+                    "select": "verdict,policy_hits,reason,inputs",
+                    "order": "evaluated_at.desc",
+                    "limit": str(limit),
+                },
+            ),
+            sb_get(
+                "run_log",
+                {
+                    "select": "path,mttr_minutes,sla_state_before,department,category,entered_at",
+                    "order": "entered_at.desc",
+                    "limit": str(limit),
+                },
+            ),
+            sb_get(
+                "workbench_tasks",
+                {
+                    "select": "status,human_decision,context",
+                    "status": "in.(rejected,modified)",
+                    "limit": str(limit),
+                },
+            ),
         )
     except SupabaseError as e:
         raise HTTPException(status_code=502, detail=f"Supabase error: {e.detail}")
+    return evals, runs, overrides
+
+
+@router.get("")
+async def get_insights(limit: int = 500):
+    evals, runs, overrides = await _fetch_source_rows(limit)
 
     insights = []
     total_evals = len(evals)
@@ -236,3 +259,200 @@ async def get_insights(limit: int = 500):
             "workbench_overrides": len(overrides),
         },
     }
+
+
+@router.get("/synthesis")
+async def get_synthesis_insight(force: bool = False):
+    """
+    One LLM-correlated insight from the same aggregated stats as the
+    deterministic insights above, catching cross-signal patterns no single
+    per-metric rule can. Split from GET /insights so the fast, deterministic
+    page load never waits on OpenRouter. Cached for _SYNTHESIS_CACHE_TTL
+    seconds since repeated page loads/refreshes shouldn't re-pay LLM latency.
+    Returns {"insight": null} — never a fabricated insight — if OpenRouter
+    isn't configured, times out, or errors.
+    """
+    global _synthesis_cache, _synthesis_cache_ts
+
+    if (
+        not force
+        and _synthesis_cache is not None
+        and (time.monotonic() - _synthesis_cache_ts) < _SYNTHESIS_CACHE_TTL
+    ):
+        return {"insight": _synthesis_cache, "cached": True}
+
+    if not openrouter_configured():
+        return {"insight": None, "cached": False}
+
+    evals, runs, overrides = await _fetch_source_rows()
+    total_evals = len(evals)
+    if not total_evals:
+        return {"insight": None, "cached": False}
+
+    hit_counts = Counter()
+    for row in evals:
+        for hit in row.get("policy_hits") or []:
+            hit_counts[hit] += 1
+
+    dept_totals = Counter()
+    dept_verdicts = Counter()
+    for row in evals:
+        dept = (row.get("inputs") or {}).get("department")
+        if not dept:
+            continue
+        dept_totals[dept] += 1
+        if row.get("verdict") == "auto":
+            dept_verdicts[dept] += 1
+
+    resolved_runs = [r for r in runs if r.get("mttr_minutes") is not None]
+    avg_mttr = (
+        round(sum(r["mttr_minutes"] for r in resolved_runs) / len(resolved_runs), 1)
+        if resolved_runs
+        else None
+    )
+
+    MIN_OVERRIDE_SAMPLE = 3
+    override_hit_counts = Counter()
+    for row in overrides:
+        for hit in (row.get("context") or {}).get("policy_hits") or []:
+            override_hit_counts[hit] += 1
+
+    volume_by_day: dict[str, int] = defaultdict(int)
+    for r in runs:
+        ts = r.get("entered_at")
+        if ts:
+            volume_by_day[ts[:10]] += 1
+    sorted_days = sorted(volume_by_day.items())
+
+    stats_summary = {
+        "total_policy_evaluations": total_evals,
+        "policy_hit_counts": dict(hit_counts),
+        "department_totals": dict(dept_totals),
+        "department_auto_verdicts": dict(dept_verdicts),
+        "resolved_ticket_count": len(resolved_runs),
+        "avg_mttr_minutes": avg_mttr,
+        "workbench_override_count": len(overrides),
+        "top_override_hit": (
+            override_hit_counts.most_common(1)[0]
+            if len(overrides) >= MIN_OVERRIDE_SAMPLE and override_hit_counts
+            else None
+        ),
+        "recent_daily_volume": dict(sorted_days[-7:]) if sorted_days else {},
+    }
+    synth_messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an operations analyst for a customer-support automation "
+                "pipeline. You will be given real aggregated statistics (JSON). "
+                "Correlate at least two of the given signals into ONE narrative "
+                "insight that a single per-metric rule would miss (e.g. a policy "
+                "hit combined with a department's low auto-rate, or override "
+                "patterns combined with volume forecast). Do NOT invent any "
+                "numbers, tickets, or facts not present in the given stats. "
+                "Respond with ONLY a JSON object, no prose, no markdown fences: "
+                '{"title": string, "description": string, "action": string, '
+                '"severity": "info"|"warning"|"critical", "confidence": number '
+                "between 0 and 1}."
+            ),
+        },
+        {
+            "role": "user",
+            "content": json.dumps(stats_summary),
+        },
+    ]
+
+    try:
+        synth_content = await asyncio.wait_for(
+            call_openrouter(synth_messages), timeout=20.0
+        )
+        parsed = extract_json(synth_content)
+    except Exception:
+        log.exception("AI synthesis insight failed — omitting, not fabricating")
+        return {"insight": None, "cached": False}
+
+    if not parsed or not parsed.get("title") or not parsed.get("description"):
+        return {"insight": None, "cached": False}
+
+    insight = {
+        "type": "ai_synthesis",
+        "severity": parsed.get("severity", "info"),
+        "title": parsed["title"],
+        "description": parsed["description"],
+        "action": parsed.get("action", ""),
+        "confidence": parsed.get("confidence", 0.5),
+    }
+    _synthesis_cache = insight
+    _synthesis_cache_ts = time.monotonic()
+    return {"insight": insight, "cached": False}
+
+
+class DiagnoseRequest(BaseModel):
+    title: str
+    description: str
+    type: str
+
+
+@router.post("/diagnose")
+async def diagnose_insight(req: DiagnoseRequest):
+    if not openrouter_configured():
+        raise HTTPException(
+            status_code=503, detail="OPENROUTER_API_KEY not configured on backend"
+        )
+
+    try:
+        evals, runs = await asyncio.gather(
+            sb_get(
+                "policy_eval_log",
+                {
+                    "select": "verdict,policy_hits,reason,inputs,evaluated_at",
+                    "order": "evaluated_at.desc",
+                    "limit": "50",
+                },
+            ),
+            sb_get(
+                "run_log",
+                {
+                    "select": "path,mttr_minutes,sla_state_before,department,category,entered_at",
+                    "order": "entered_at.desc",
+                    "limit": "50",
+                },
+            ),
+        )
+    except SupabaseError as e:
+        raise HTTPException(status_code=502, detail=f"Supabase error: {e.detail}")
+
+    supporting_data = {
+        "recent_policy_evaluations": evals,
+        "recent_run_log_rows": runs,
+    }
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an operations analyst diagnosing a specific insight from a "
+                "customer-support automation pipeline. You are given the insight and a "
+                "slice of real recent supporting data (JSON). Produce a deeper diagnosis: "
+                "likely root cause(s) and a concrete next step. You MUST ground every claim "
+                "in the given data — cite real counts/values from it. Never invent tickets, "
+                "numbers, or facts not present in the given data. If the data doesn't clearly "
+                "support a root cause, say so honestly instead of guessing. Respond with "
+                "plain text (2-4 sentences), no JSON, no markdown fences."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Insight type: {req.type}\nTitle: {req.title}\nDescription: {req.description}\n\n"
+                f"Supporting data:\n{json.dumps(supporting_data)}"
+            ),
+        },
+    ]
+
+    diagnosis = await call_openrouter(messages)
+    if not diagnosis.strip():
+        raise HTTPException(
+            status_code=502, detail="OpenRouter returned an empty diagnosis"
+        )
+    return {"diagnosis": diagnosis.strip()}

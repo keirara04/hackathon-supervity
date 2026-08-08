@@ -17,6 +17,7 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from ..core.openrouter import call_openrouter, extract_json
 from ..core.supabase import SupabaseError, sb_get, sb_get_one
 from .dashboard import get_kpis
 from .data_manager import get_health
@@ -25,13 +26,13 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["AI Manager"])
 
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.2-3b-instruct")
-
 AUTO_WORKFLOW_API_KEY = os.getenv("AUTO_WORKFLOW_API_KEY", "")
 AUTO_WORKFLOW_ID = os.getenv("AUTO_WORKFLOW_ID", "")
-AUTO_ORG_ID = os.getenv("AUTO_ORG_ID", "")
+AUTO_USER_TIMEZONE = os.getenv("AUTO_USER_TIMEZONE", "Asia/Kuala_Lumpur")
+AUTO_SLACK_CHANNEL = os.getenv("AUTO_SLACK_CHANNEL", "it-help-desk")
+AUTO_WORKFLOW_URL = (
+    "https://auto-workflow-api.supervity.ai/api/v1/workflow-runs/execute/stream"
+)
 
 # meta-llama/llama-3.2-3b-instruct has no native tool-calling support on
 # OpenRouter (sending `tools` 404s: "No endpoints found that support tool
@@ -44,7 +45,8 @@ TOOL_DESCRIPTIONS = """
 - get_policy_config(): current live AI Policy levers (vip_always_escalate, min_kb_confidence, min_auto_score, etc).
 - get_recent_policy_evals(limit=20): recent policy evaluation log rows (ticket, verdict, reason, policy hits).
 - get_data_manager_health(): live up/down/not_configured status of every connected system (Supabase, Zendesk, Outlook).
-- trigger_orchestrator_run(reason): trigger (or re-trigger) a run of the Auto Orchestrator.
+- trigger_orchestrator_run(reason): trigger (or re-trigger) a run of the Auto Orchestrator — sweeps the
+  #it-help-desk Slack channel for support messages and runs the full pipeline.
 """.strip()
 
 # Static app knowledge — what each Command Center page shows and where its
@@ -156,32 +158,77 @@ async def _tool_get_data_manager_health(_args: dict) -> dict:
 
 
 async def _tool_trigger_orchestrator_run(args: dict) -> dict:
-    if not (AUTO_WORKFLOW_API_KEY and AUTO_WORKFLOW_ID and AUTO_ORG_ID):
+    if not (AUTO_WORKFLOW_API_KEY and AUTO_WORKFLOW_ID):
         return {
             "status": "not_configured",
-            "detail": "Auto orchestrator credentials not set yet — waiting on Amsyar's workflowId/API key.",
+            "detail": "Auto orchestrator credentials not set in backend .env",
         }
 
+    # Confirmed via a live trigger: the workflow-run event's `inputs` schema
+    # names the required field `slack_channel_name` (Slack channel to sweep
+    # support messages from). "it-help-desk" is the real channel.
+    form_data = {
+        "workflowId": AUTO_WORKFLOW_ID,
+        "inputs[slack_channel_name]": AUTO_SLACK_CHANNEL,
+    }
+
+    # This kicks off a real multi-agent pipeline run that can take minutes
+    # to finish (sweep -> triage -> diagnose -> decide -> remediate). The
+    # chat request must not block on the full stream — read only until the
+    # run is confirmed started (the workflow-run event, which carries the
+    # real workflowRunId), then disconnect. Progress after that point is
+    # visible in run_log/workbench via the other tools, not this call.
+    events: list[dict] = []
+    workflow_run_id: str | None = None
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(
-                "https://auto.supervity.ai/api/v1/workflow-runs/execute",
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            async with client.stream(
+                "POST",
+                AUTO_WORKFLOW_URL,
                 headers={
                     "Authorization": f"Bearer {AUTO_WORKFLOW_API_KEY}",
-                    "x-active-org": AUTO_ORG_ID,
                     "x-source": "external",
+                    "x-user-timezone": AUTO_USER_TIMEZONE,
                 },
-                data={
-                    "workflowId": AUTO_WORKFLOW_ID,
-                    "inputs": json.dumps({"reason": args.get("reason", "")}),
-                },
-            )
-        if resp.status_code >= 300:
+                data=form_data,
+            ) as resp:
+                if resp.status_code >= 300:
+                    body = await resp.aread()
+                    return {
+                        "status": "error",
+                        "detail": f"Auto returned HTTP {resp.status_code}: {body[:300].decode(errors='replace')}",
+                    }
+
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[len("data:") :].strip()
+                    if not payload:
+                        continue
+                    try:
+                        event = json.loads(payload)
+                    except json.JSONDecodeError:
+                        event = {"raw": payload}
+                    events.append(event)
+
+                    content = event.get("content") if isinstance(event, dict) else None
+                    if isinstance(content, dict) and content.get("workflowRunId"):
+                        workflow_run_id = content["workflowRunId"]
+                        break  # run confirmed started — stop waiting on the stream
+
+        if workflow_run_id is None:
             return {
                 "status": "error",
-                "detail": f"Auto returned HTTP {resp.status_code}: {resp.text[:300]}",
+                "detail": "Stream ended before the run was confirmed started.",
+                "events": events,
             }
-        return {"status": "triggered", "detail": resp.json()}
+
+        return {
+            "status": "triggered",
+            "workflow_run_id": workflow_run_id,
+            "slack_channel_swept": AUTO_SLACK_CHANNEL,
+            "note": "Run started in the background — full completion takes minutes. Check run_log/Workbench for progress, not this response.",
+        }
     except Exception as e:  # noqa: BLE001
         return {"status": "error", "detail": str(e)}
 
@@ -207,51 +254,6 @@ class ChatRequest(BaseModel):
     context: dict[str, Any] = {}
 
 
-async def _call_openrouter(messages: list[dict]) -> str:
-    if not OPENROUTER_API_KEY:
-        raise HTTPException(
-            status_code=503, detail="OPENROUTER_API_KEY not configured on backend"
-        )
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(
-            OPENROUTER_URL,
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": OPENROUTER_MODEL,
-                "messages": messages,
-            },
-        )
-    if resp.status_code >= 300:
-        raise HTTPException(
-            status_code=502,
-            detail=f"OpenRouter error {resp.status_code}: {resp.text[:500]}",
-        )
-    return resp.json()["choices"][0]["message"]["content"] or ""
-
-
-def _extract_json(text: str) -> dict | None:
-    """Best-effort JSON extraction — small models sometimes wrap JSON in
-    prose or markdown fences despite instructions."""
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text.lower().startswith("json"):
-            text = text[4:]
-        text = text.strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1 or end < start:
-        return None
-    try:
-        return json.loads(text[start : end + 1])
-    except json.JSONDecodeError:
-        return None
-
-
 @router.post("/chat")
 async def chat(body: ChatRequest):
     page = body.context.get("page", "unknown")
@@ -264,8 +266,8 @@ async def chat(body: ChatRequest):
 
     try:
         for _ in range(4):
-            content = await _call_openrouter(messages)
-            parsed = _extract_json(content)
+            content = await call_openrouter(messages)
+            parsed = extract_json(content)
 
             if parsed is None or "answer" in parsed:
                 answer = parsed["answer"] if parsed and "answer" in parsed else content

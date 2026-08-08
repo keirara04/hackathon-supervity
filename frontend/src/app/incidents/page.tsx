@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Icons } from '@/components/ui/icons'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { apiClient } from '@/lib/api-client'
 
@@ -50,6 +51,22 @@ export default function IncidentsPage() {
   const [loading, setLoading] = useState(true)
   const [detecting, setDetecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [detailCluster, setDetailCluster] = useState<Cluster | null>(null)
+  const [query, setQuery] = useState('')
+
+  const visibleIncidents = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const incidents = data?.incidents ?? []
+    if (!q) return incidents
+    return incidents.filter((inc) => `${inc.incident_id} ${inc.title}`.toLowerCase().includes(q))
+  }, [data, query])
+
+  const visibleClusters = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const clusters = data?.clusters ?? []
+    if (!q) return clusters
+    return clusters.filter((c) => c.cluster_key.toLowerCase().includes(q))
+  }, [data, query])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -117,13 +134,23 @@ export default function IncidentsPage() {
         </motion.div>
       )}
 
+      <motion.div variants={itemVariants} className='relative'>
+        <Icons.search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder='Search cluster, incident ID, title...'
+          className='w-full rounded-full border border-border bg-muted/10 py-2 pl-9 pr-4 text-sm outline-none focus:border-primary/50 sm:max-w-sm'
+        />
+      </motion.div>
+
       <motion.div variants={itemVariants}>
         <h2 className='mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground'>
-          Declared Incidents {data && `(${data.incidents.length})`}
+          Declared Incidents {data && `(${visibleIncidents.length})`}
         </h2>
-        {data && data.incidents.length > 0 ? (
+        {visibleIncidents.length > 0 ? (
           <div className='grid gap-4 md:grid-cols-2'>
-            {data.incidents.map((inc) => (
+            {visibleIncidents.map((inc) => (
               <Card key={inc.id}>
                 <CardHeader>
                   <div className='flex items-start justify-between gap-2'>
@@ -172,8 +199,12 @@ export default function IncidentsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.clusters.map((c) => (
-                    <tr key={c.cluster_key} className='border-b border-border/50'>
+                  {visibleClusters.map((c) => (
+                    <tr
+                      key={c.cluster_key}
+                      onClick={() => setDetailCluster(c)}
+                      className='cursor-pointer border-b border-border/50 hover:bg-muted/10'
+                    >
                       <td className='py-2 pr-4 font-medium capitalize'>{c.cluster_key}</td>
                       <td className='py-2 pr-4'>{c.active}</td>
                       <td className='py-2 pr-4 text-muted-foreground'>{c.total}</td>
@@ -190,13 +221,38 @@ export default function IncidentsPage() {
                   ))}
                 </tbody>
               </table>
-              {data?.clusters.length === 0 && !loading && (
+              {visibleClusters.length === 0 && !loading && (
                 <p className='py-8 text-center text-sm text-muted-foreground'>No clustered tickets yet.</p>
               )}
             </div>
           </CardContent>
         </Card>
       </motion.div>
+
+      <Dialog open={detailCluster !== null} onOpenChange={(open) => !open && setDetailCluster(null)}>
+        <DialogContent>
+          {detailCluster && (
+            <>
+              <DialogHeader>
+                <DialogTitle className='capitalize'>{detailCluster.cluster_key}</DialogTitle>
+                <DialogDescription>
+                  {detailCluster.active} active of {detailCluster.total} total tickets in this cluster
+                </DialogDescription>
+              </DialogHeader>
+              <div>
+                <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground'>Linked tickets</p>
+                <div className='flex flex-wrap gap-1.5'>
+                  {detailCluster.ticket_ids.map((id) => (
+                    <span key={id} className='rounded-full bg-muted px-2 py-0.5 text-xs font-mono text-muted-foreground'>
+                      {id}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }

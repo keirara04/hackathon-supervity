@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Icons } from '@/components/ui/icons'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { apiClient } from '@/lib/api-client'
+import { useSearchFilter } from '@/hooks'
 
 interface ZendeskTicket {
   ticket_id: number
@@ -60,6 +62,12 @@ export default function ZendeskTicketsPage() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [importing, setImporting] = useState(false)
   const [results, setResults] = useState<Record<string, ImportResult>>({})
+  const [detailTicket, setDetailTicket] = useState<ZendeskTicket | null>(null)
+
+  const { query, setQuery, filtered: visibleTickets } = useSearchFilter(
+    tickets,
+    (t) => `${t.subject} ${t.requester_name ?? ''} ${t.issue_key} ${t.tags.join(' ')}`
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -153,6 +161,16 @@ export default function ZendeskTicketsPage() {
         </motion.div>
       )}
 
+      <motion.div variants={itemVariants} className='relative'>
+        <Icons.search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder='Search subject, requester, ticket #, tags...'
+          className='w-full rounded-full border border-border bg-muted/10 py-2 pl-9 pr-4 text-sm outline-none focus:border-primary/50 sm:max-w-sm'
+        />
+      </motion.div>
+
       {loading ? (
         <Card className='p-6'>
           <div className='space-y-3'>
@@ -173,13 +191,17 @@ export default function ZendeskTicketsPage() {
             <CardContent>
               {/* Mobile: stacked cards, no horizontal scrolling */}
               <div className='space-y-3 sm:hidden'>
-                {tickets.map((t) => {
+                {visibleTickets.map((t) => {
                   const isEditing = editingId === t.ticket_id
                   const result = results[t.issue_key]
                   return (
-                    <div key={t.ticket_id} className='rounded-lg border border-border p-3'>
+                    <div
+                      key={t.ticket_id}
+                      onClick={() => setDetailTicket(t)}
+                      className='cursor-pointer rounded-lg border border-border p-3 hover:bg-muted/10'
+                    >
                       <div className='flex items-start justify-between gap-2'>
-                        <div className='flex items-center gap-2'>
+                        <div className='flex items-center gap-2' onClick={(e) => e.stopPropagation()}>
                           <input
                             type='checkbox'
                             checked={selected.has(t.ticket_id)}
@@ -203,7 +225,7 @@ export default function ZendeskTicketsPage() {
                         )}
                       </div>
 
-                      <div className='mt-2'>
+                      <div className='mt-2' onClick={(e) => e.stopPropagation()}>
                         {isEditing ? (
                           <input
                             autoFocus
@@ -239,7 +261,7 @@ export default function ZendeskTicketsPage() {
                     </div>
                   )
                 })}
-                {tickets.length === 0 && (
+                {visibleTickets.length === 0 && (
                   <p className='py-8 text-center text-sm text-muted-foreground'>No unresolved tickets found.</p>
                 )}
               </div>
@@ -259,12 +281,16 @@ export default function ZendeskTicketsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {tickets.map((t) => {
+                    {visibleTickets.map((t) => {
                       const isEditing = editingId === t.ticket_id
                       const result = results[t.issue_key]
                       return (
-                        <tr key={t.ticket_id} className='border-b border-border/50'>
-                          <td className='py-2'>
+                        <tr
+                          key={t.ticket_id}
+                          onClick={() => setDetailTicket(t)}
+                          className='cursor-pointer border-b border-border/50 hover:bg-muted/10'
+                        >
+                          <td className='py-2' onClick={(e) => e.stopPropagation()}>
                             <input
                               type='checkbox'
                               checked={selected.has(t.ticket_id)}
@@ -273,7 +299,7 @@ export default function ZendeskTicketsPage() {
                             />
                           </td>
                           <td className='py-2 pr-4 font-medium'>#{t.ticket_id}</td>
-                          <td className='py-2 pr-4'>
+                          <td className='py-2 pr-4' onClick={(e) => e.stopPropagation()}>
                             {isEditing ? (
                               <input
                                 autoFocus
@@ -296,7 +322,7 @@ export default function ZendeskTicketsPage() {
                           <td className='py-2 pr-4 text-muted-foreground'>
                             {t.requester_name ?? '—'}
                           </td>
-                          <td className='py-2 pr-4'>
+                          <td className='py-2 pr-4' onClick={(e) => e.stopPropagation()}>
                             <input
                               defaultValue={edits[t.ticket_id]?.priority_raw ?? t.priority ?? ''}
                               onChange={(e) => setEdit(t.ticket_id, 'priority_raw', e.target.value)}
@@ -327,7 +353,7 @@ export default function ZendeskTicketsPage() {
                     })}
                   </tbody>
                 </table>
-                {tickets.length === 0 && (
+                {visibleTickets.length === 0 && (
                   <p className='py-8 text-center text-sm text-muted-foreground'>No unresolved tickets found.</p>
                 )}
               </div>
@@ -335,6 +361,47 @@ export default function ZendeskTicketsPage() {
           </Card>
         </motion.div>
       )}
+
+      <Dialog open={detailTicket !== null} onOpenChange={(open) => !open && setDetailTicket(null)}>
+        <DialogContent>
+          {detailTicket && (
+            <>
+              <DialogHeader>
+                <DialogTitle>#{detailTicket.ticket_id} — {detailTicket.subject}</DialogTitle>
+                <DialogDescription>
+                  {detailTicket.requester_name ?? 'Unknown requester'} ({detailTicket.requester_email ?? 'no email'})
+                </DialogDescription>
+              </DialogHeader>
+              <div className='space-y-3 text-sm'>
+                <div>
+                  <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>Description</p>
+                  <p className='mt-1'>{detailTicket.description || 'No description provided'}</p>
+                </div>
+                <div className='grid grid-cols-2 gap-3 text-xs text-muted-foreground'>
+                  <p><span className='font-semibold text-foreground'>External ID:</span> {detailTicket.external_id ?? '—'}</p>
+                  <p><span className='font-semibold text-foreground'>Priority:</span> {detailTicket.priority ?? '—'}</p>
+                  <p><span className='font-semibold text-foreground'>Status:</span> {detailTicket.status}</p>
+                  <p><span className='font-semibold text-foreground'>Queue:</span> {detailTicket.queue_status ?? (detailTicket.already_queued ? 'queued' : 'not queued')}</p>
+                  <p><span className='font-semibold text-foreground'>Created:</span> {new Date(detailTicket.created_at).toLocaleString()}</p>
+                  <p><span className='font-semibold text-foreground'>Due:</span> {detailTicket.due_at ? new Date(detailTicket.due_at).toLocaleString() : '—'}</p>
+                </div>
+                {detailTicket.tags.length > 0 && (
+                  <div>
+                    <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>Tags</p>
+                    <div className='mt-1 flex flex-wrap gap-1'>
+                      {detailTicket.tags.map((tag) => (
+                        <span key={tag} className='rounded-full bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground'>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }
